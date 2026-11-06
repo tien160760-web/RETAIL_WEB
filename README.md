@@ -32,8 +32,6 @@ Các chức năng hỗ trợ gồm xác thực và phân quyền, danh mục/s�
 | Đóng gói và triển khai | Docker, **3 VM riêng** | VM Frontend; VM Backend; VM PostgreSQL + storage |
 | Thiết kế | Figma (hoặc tương đương), ERD | Thiết kế giao diện và mô hình dữ liệu |
 
-> **Lưu ý:** Thông báo Project cuối kỳ yêu cầu PostgreSQL, FastAPI và giao diện React; công nghệ thay thế phải được giảng viên chấp thuận. Quyết định sử dụng Next.js cần được ghi nhận/xác nhận trước khi triển khai chính thức.
-
 ## 4. Nhóm thực hiện và phân công
 
 | Thành viên | GitHub | Vai trò / hạng mục chính | Người kiểm tra chính | Bàn giao dự kiến |
@@ -42,8 +40,6 @@ Các chức năng hỗ trợ gồm xác thực và phân quyền, danh mục/s�
 | **Phạm Đức Thắng** | [`pdt37012-blip`](https://github.com/pdt37012-blip) | CSDL PostgreSQL, ERD, migration, truy vấn, nghiệp vụ nhập hàng/tồn kho | Dương Đức Tiến | ERD, schema, SQL, data scripts, test, PR |
 | **Vũ Mạnh Hiếu** | [`vmhus`](https://github.com/vmhus) | Thiết kế và phát triển Frontend khách hàng | Phạm Ngọc Tài | Figma, giao diện kết nối API, test, PR |
 | **Phạm Ngọc Tài** | [`PhamNgocTai-73`](https://github.com/PhamNgocTai-73) | Frontend quản trị và báo cáo; kiểm thử; đầu mối hạ tầng 3 VM | Vũ Mạnh Hiếu | Dashboard, báo cáo, test, tài liệu triển khai, PR |
-
-**Nguyên tắc:** Mỗi thành viên phải có phần đóng góp kỹ thuật có thể chạy/kiểm thử; thiết kế Figma hoặc tài liệu riêng **không thay thế** cho yêu cầu đóng góp code/SQL. Phân công chi tiết các giai đoạn sau có thể cập nhật bằng GitHub Issues và Pull Requests.
 
 ### Các Issues của giai đoạn M1
 
@@ -71,7 +67,6 @@ Theo thông báo của giảng viên, hệ thống hoàn chỉnh cần đáp ứ
 | Triển khai | **3 VM có hệ điều hành khách và địa chỉ mạng riêng**, Docker/config, dữ liệu bền vững |
 | GitHub | Issue, nhánh, commit, PR, review kỹ thuật, test, bàn giao có thể truy vết |
 
-**Lưu ý về số bảng:** Tài liệu môn học yêu cầu **tối thiểu 6 bảng nghiệp vụ**, không bắt buộc 20–30 bảng. Nếu nhóm thiết kế nhiều hơn, mỗi bảng phải có lý do nghiệp vụ rõ ràng, tránh tách bảng chỉ để tăng số lượng.
 
 ## 6. Cấu trúc dự án dự kiến
 
@@ -91,8 +86,6 @@ RETAIL_WEB/
 └── deployment/                    # Dự kiến: Docker, 3 VM, hướng dẫn vận hành
 ```
 
-> Cây thư mục trên là **đề xuất để thống nhất cách tổ chức**, không khẳng định các thư mục đã tồn tại trong repository.
-
 ## 7. Quy trình làm việc GitHub
 
 1. Mỗi công việc có **Issue**: mục tiêu, người phụ trách, người kiểm tra, checklist, sản phẩm bàn giao.
@@ -102,7 +95,6 @@ RETAIL_WEB/
 5. Thành viên khác review kỹ thuật, yêu cầu sửa nếu cần; hoàn thành review rồi mới merge.
 6. Chỉ đóng Issue khi có sản phẩm bàn giao và tiêu chí nghiệm thu được đáp ứng.
 
-**Cần chốt trước khi code:** Tại thời điểm lập tài liệu, `thang` là default branch của repository. Nhóm phải xác định rõ **nhánh tích hợp chính**; không mặc định `thang` là nhánh chung chỉ vì đang là nhánh mặc định. Tránh đổi default branch khi chưa kiểm tra lịch sử và thống nhất với thành viên.
 
 ## 8. Tiến độ và tài liệu
 
