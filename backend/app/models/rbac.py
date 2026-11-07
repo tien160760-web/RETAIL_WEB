@@ -10,21 +10,28 @@ class Branch(Base, TimestampMixin):
     branch_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     branch_code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     branch_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    address: Mapped[str] = mapped_column(Text, nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    manager_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    manager: Mapped["User | None"] = relationship(foreign_keys=[manager_user_id])
     user_accesses: Mapped[list["UserBranchAccess"]] = relationship(
         back_populates="branch", cascade="all, delete-orphan"
     )
 
 
-class Role(Base, TimestampMixin):
+class Role(Base):
     __tablename__ = "roles"
 
     role_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     role_name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     user_roles: Mapped[list["UserRole"]] = relationship(
         back_populates="role", cascade="all, delete-orphan"
@@ -68,6 +75,10 @@ class User(Base, TimestampMixin):
         foreign_keys="[UserBranchAccess.user_id]",
         cascade="all, delete-orphan",
     )
+    addresses: Mapped[list["CustomerAddress"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class UserRole(Base):
@@ -79,11 +90,11 @@ class UserRole(Base):
     role_id: Mapped[int] = mapped_column(
         ForeignKey("roles.role_id", ondelete="CASCADE"), primary_key=True
     )
-    assigned_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
     assigned_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="user_roles", foreign_keys=[user_id])
@@ -113,28 +124,30 @@ class UserBranchAccess(Base):
     branch_id: Mapped[int] = mapped_column(
         ForeignKey("branches.branch_id", ondelete="CASCADE"), primary_key=True
     )
-    assigned_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
     assigned_by: Mapped[int | None] = mapped_column(
         ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="branch_accesses", foreign_keys=[user_id])
     branch: Mapped["Branch"] = relationship(back_populates="user_accesses")
 
 
-class AuditLog(Base):
-    __tablename__ = "audit_logs"
+class CustomerAddress(Base, TimestampMixin):
+    __tablename__ = "customer_addresses"
 
-    log_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    actor_user_id: Mapped[int | None] = mapped_column(
-        ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
+    address_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True
     )
-    action: Mapped[str] = mapped_column(String(100), nullable=False)
-    entity_type: Mapped[str] = mapped_column(String(100), nullable=False)
-    entity_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    details: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    recipient_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    recipient_phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    address_line: Mapped[str] = mapped_column(Text, nullable=False)
+    ward: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    district: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    user: Mapped["User"] = relationship(back_populates="addresses")

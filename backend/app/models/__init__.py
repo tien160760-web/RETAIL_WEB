@@ -7,7 +7,7 @@ from app.models.rbac import (
     UserRole,
     RolePermission,
     UserBranchAccess,
-    AuditLog,
+    CustomerAddress,
 )
 
 __all__ = [
@@ -20,5 +20,5 @@ __all__ = [
     "UserRole",
     "RolePermission",
     "UserBranchAccess",
-    "AuditLog",
+    "CustomerAddress",
 ]
