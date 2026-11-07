@@ -1,4 +1,10 @@
+import sys
+from pathlib import Path
 from logging.config import fileConfig
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE_DIR))
+
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
