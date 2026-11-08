@@ -1,21 +1,29 @@
 -- 1. VIEW BÁO CÁO DOANH THU, LỢI NHUẬN THEO CHI NHÁNH & THỜI GIAN (UC25)
 
 CREATE OR REPLACE VIEW vw_branch_daily_sales_report AS
+WITH order_item_totals AS (
+    SELECT 
+        oi.order_id,
+        SUM(oi.quantity) AS order_items_qty,
+        SUM(oi.quantity * oi.unit_cost) AS order_cogs
+    FROM order_items oi
+    GROUP BY oi.order_id
+)
 SELECT 
     b.branch_id,
     b.branch_code,
     b.branch_name,
     DATE(o.created_at AT TIME ZONE 'Asia/Ho_Chi_Minh') AS report_date,
-    COUNT(DISTINCT o.order_id) AS total_orders,
-    SUM(oi.quantity) AS total_items_sold,
+    COUNT(o.order_id) AS total_orders,
+    SUM(oit.order_items_qty) AS total_items_sold,
     SUM(o.subtotal_amount) AS gross_sales,
     SUM(o.discount_amount) AS total_discounts,
     SUM(o.total_amount - o.shipping_fee) AS net_revenue,
-    SUM(oi.quantity * oi.unit_cost) AS total_cogs,
-    SUM((oi.quantity * oi.unit_price) - (oi.quantity * oi.unit_cost)) - SUM(DISTINCT o.discount_amount) AS gross_profit
+    SUM(oit.order_cogs) AS total_cogs,
+    SUM((o.subtotal_amount - o.discount_amount) - oit.order_cogs) AS gross_profit
 FROM branches b
 JOIN orders o ON b.branch_id = o.branch_id
-JOIN order_items oi ON o.order_id = oi.order_id
+JOIN order_item_totals oit ON o.order_id = oit.order_id
 WHERE o.order_status = 'COMPLETED'
   AND o.payment_status = 'PAID'
 GROUP BY 
