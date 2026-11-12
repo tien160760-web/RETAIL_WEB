@@ -51,8 +51,8 @@ def get_current_user(
             detail="Tai khoan da bi vo hieu hoa",
         )
 
-
     return user
+
 
 def require_role(*allowed_roles: str):
     """Kiểm tra người dùng có ít nhất một vai trò được phép."""
@@ -61,10 +61,7 @@ def require_role(*allowed_roles: str):
         current_user: User = Depends(get_current_user),
     ) -> User:
 
-        user_roles = {
-            user_role.role.role_name
-            for user_role in current_user.user_roles
-        }
+        user_roles = {user_role.role.role_name for user_role in current_user.user_roles}
 
         if not user_roles.intersection(allowed_roles):
             raise HTTPException(
@@ -76,26 +73,28 @@ def require_role(*allowed_roles: str):
 
     return role_checker
 
+
 def require_branch_access(
     branch_id: int,
-    current_user: User = Depends(require_role("ADMIN", "STAFF")),
+    current_user: User = Depends(
+        require_role(
+            "ADMIN",
+            "BRANCH_MANAGER",
+            "WAREHOUSE_STAFF",
+            "SALES_STAFF",
+        )
+    ),
 ) -> User:
-    """Kiểm tra quyền truy cập chi nhánh của ADMIN hoặc STAFF."""
+    """Kiểm tra quyền truy cập chi nhánh của quản trị viên hoặc nhân viên được phân công."""
 
-    user_roles = {
-        user_role.role.role_name
-        for user_role in current_user.user_roles
-    }
+    user_roles = {user_role.role.role_name for user_role in current_user.user_roles}
 
     # ADMIN được truy cập tất cả chi nhánh
     if "ADMIN" in user_roles:
         return current_user
 
-    # STAFF chỉ được truy cập chi nhánh được phân công
-    allowed_branch_ids = {
-        access.branch_id
-        for access in current_user.branch_accesses
-    }
+    # Nhân viên chỉ được truy cập chi nhánh được phân công
+    allowed_branch_ids = {access.branch_id for access in current_user.branch_accesses}
 
     if branch_id not in allowed_branch_ids:
         raise HTTPException(
