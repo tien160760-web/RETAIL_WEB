@@ -1,0 +1,505 @@
+Table users {
+  user_id integer [pk, increment]
+  username varchar(50) [unique, not null]
+  email varchar(255) [unique, not null, note: 'UC01, UC02, UC04']
+  password_hash varchar(255) [not null]
+  full_name varchar(100) [not null]
+  phone varchar(20)
+  is_active boolean [not null, default: true, note: 'UC02, UC04: Vo hieu hoa tai khoan']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table roles {
+  role_id integer [pk, increment]
+  role_name varchar(50) [unique, not null, note: 'ADMIN, BRANCH_MANAGER, WAREHOUSE_STAFF, SALES_STAFF, CUSTOMER']
+  description varchar(255)
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table permissions {
+  permission_id integer [pk, increment]
+  permission_code varchar(100) [unique, not null]
+  permission_name varchar(150) [not null]
+  description varchar(255)
+}
+
+Table user_roles {
+  user_id integer [ref: > users.user_id, not null]
+  role_id integer [ref: > roles.role_id, not null]
+  assigned_by integer [ref: > users.user_id]
+  assigned_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (user_id, role_id) [pk]
+  }
+}
+
+Table role_permissions {
+  role_id integer [ref: > roles.role_id, not null]
+  permission_id integer [ref: > permissions.permission_id, not null]
+
+  indexes {
+    (role_id, permission_id) [pk]
+  }
+}
+
+Table branches {
+  branch_id integer [pk, increment]
+  branch_code varchar(50) [unique, not null]
+  branch_name varchar(255) [not null, note: 'UC26: Ten chi nhanh']
+  address text [not null, note: 'UC26: Dia chi']
+  phone varchar(20) [note: 'UC26: So dien thoai']
+  manager_user_id integer [ref: > users.user_id, note: 'UC26: Nguoi quan ly chi nhanh']
+  is_active boolean [not null, default: true, note: 'UC26: Trang thai hoat dong']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table user_branch_access {
+  user_id integer [ref: > users.user_id, not null]
+  branch_id integer [ref: > branches.branch_id, not null]
+  assigned_by integer [ref: > users.user_id]
+  assigned_at timestamptz [not null, default: `now()`, note: 'UC04: Phan quyen nhan vien theo chi nhanh']
+
+  indexes {
+    (user_id, branch_id) [pk]
+  }
+}
+
+Table customer_addresses {
+  address_id integer [pk, increment]
+  user_id integer [ref: > users.user_id, not null, note: 'UC03: So dia chi cua khach hang']
+  recipient_name varchar(100) [not null]
+  recipient_phone varchar(20) [not null]
+  address_line text [not null]
+  ward varchar(100)
+  district varchar(100)
+  city varchar(100) [not null]
+  is_default boolean [not null, default: false]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+// =========================================================================
+// PHÂN HỆ 2: DANH MỤC, SẢN PHẨM & NHÀ CUNG CẤP (UC05 - UC07)
+// =========================================================================
+
+Table categories {
+  category_id integer [pk, increment]
+  parent_id integer [ref: > categories.category_id, note: 'Danh muc cha - con']
+  category_name varchar(150) [unique, not null, note: 'UC06: Ten danh muc khong trung']
+  slug varchar(180) [unique, not null]
+  description text
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table products {
+  product_id integer [pk, increment]
+  category_id integer [ref: > categories.category_id, not null]
+  product_name varchar(255) [not null, note: 'UC05, UC06']
+  slug varchar(255) [unique, not null]
+  description text
+  base_price decimal(15,2) [not null]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table product_variants {
+  variant_id integer [pk, increment]
+  product_id integer [ref: > products.product_id, not null]
+  sku varchar(100) [unique, not null, note: 'UC06: Ma SKU duy nhat']
+  color varchar(50) [note: 'UC05, UC06: Mau sac']
+  size varchar(50) [note: 'UC05, UC06: Kich co']
+  price decimal(15,2) [not null, note: 'UC06: Gia ban theo bien the']
+  cost_price decimal(15,2) [not null, default: 0, note: 'Gia von hien tai']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table product_images {
+  image_id integer [pk, increment]
+  product_id integer [ref: > products.product_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, note: 'UC06: Anh gan voi bien the cu the (neu co)']
+  image_url text [not null]
+  is_primary boolean [not null, default: false]
+  display_order integer [not null, default: 0]
+}
+
+Table suppliers {
+  supplier_id integer [pk, increment]
+  supplier_code varchar(50) [unique, not null, note: 'UC07: Ma nha cung cap khong trung']
+  supplier_name varchar(255) [not null]
+  contact_name varchar(100)
+  email varchar(255)
+  phone varchar(20) [not null]
+  address text
+  is_active boolean [not null, default: true, note: 'UC07: Trang thai hoat dong']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+// =========================================================================
+// PHÂN HỆ 3: TỒN KHO, NHẬP HÀNG, ĐIỀU CHUYỂN & KIỂM KÊ (UC08 - UC12)
+// =========================================================================
+
+Table inventory_levels {
+  inventory_id integer [pk, increment]
+  branch_id integer [ref: > branches.branch_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  on_hand_qty integer [not null, default: 0, note: 'UC10: So luong thuc te trong kho (>= 0)']
+  reserved_qty integer [not null, default: 0, note: 'UC10, UC14: So luong dang giu cho don hang (<= on_hand_qty)']
+  reorder_level integer [not null, default: 5, note: 'UC10: Nguong canh bao sap het hang']
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (branch_id, variant_id) [unique]
+  }
+}
+
+Table purchase_orders {
+  po_id integer [pk, increment]
+  po_number varchar(50) [unique, not null]
+  supplier_id integer [ref: > suppliers.supplier_id, not null, note: 'UC08: Nha cung cap']
+  branch_id integer [ref: > branches.branch_id, not null, note: 'UC08: Chi nhanh nhan hang']
+  created_by integer [ref: > users.user_id, not null, note: 'UC08: Quan ly chi nhanh lap don']
+  expected_delivery_date date [note: 'UC08: Ngay du kien giao']
+  total_amount decimal(15,2) [not null, default: 0]
+  status varchar(30) [not null, default: 'PENDING_RECEIPT', note: 'PENDING_RECEIPT, PARTIALLY_RECEIVED, COMPLETED, CANCELLED']
+  note text
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table purchase_order_items {
+  po_item_id integer [pk, increment]
+  po_id integer [ref: > purchase_orders.po_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  ordered_qty integer [not null, note: 'UC08: So luong dat (> 0)']
+  received_qty integer [not null, default: 0, note: 'UC09: Luy ke so luong da nhan']
+  unit_cost decimal(15,2) [not null, note: 'UC08: Don gia nhap du kien (> 0)']
+  line_total decimal(15,2) [not null]
+
+  indexes {
+    (po_id, variant_id) [unique]
+  }
+}
+
+Table purchase_receipts {
+  receipt_id integer [pk, increment]
+  receipt_number varchar(50) [unique, not null]
+  po_id integer [ref: > purchase_orders.po_id, not null, note: 'UC09: Phieu nhap tu don dat hang']
+  branch_id integer [ref: > branches.branch_id, not null]
+  received_by integer [ref: > users.user_id, not null, note: 'UC09: Nhan vien kho tiep nhan']
+  received_at timestamptz [not null, default: `now()`]
+  note text
+}
+
+Table purchase_receipt_items {
+  receipt_item_id integer [pk, increment]
+  receipt_id integer [ref: > purchase_receipts.receipt_id, not null]
+  po_item_id integer [ref: > purchase_order_items.po_item_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  received_qty integer [not null, note: 'UC09: So luong thuc nhan dot nay']
+  unit_cost decimal(15,2) [not null]
+
+  indexes {
+    (receipt_id, variant_id) [unique]
+  }
+}
+
+Table stock_transfers {
+  transfer_id integer [pk, increment]
+  transfer_number varchar(50) [unique, not null]
+  from_branch_id integer [ref: > branches.branch_id, not null, note: 'UC11: Chi nhanh xuat']
+  to_branch_id integer [ref: > branches.branch_id, not null, note: 'UC11: Chi nhanh nhan (khac from_branch_id)']
+  requested_by integer [ref: > users.user_id, not null]
+  approved_by integer [ref: > users.user_id, note: 'UC11: Quan ly duyet xuat dieu chuyen']
+  received_by integer [ref: > users.user_id, note: 'UC11: Nhan vien kho chi nhanh dich xac nhan nhan']
+  status varchar(30) [not null, default: 'PENDING', note: 'PENDING, IN_TRANSIT, COMPLETED, CANCELLED']
+  shipped_at timestamptz
+  received_at timestamptz
+  note text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table stock_transfer_items {
+  transfer_item_id integer [pk, increment]
+  transfer_id integer [ref: > stock_transfers.transfer_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  shipped_qty integer [not null, note: 'UC11: So luong xuat dieu chuyen']
+  received_qty integer [default: 0, note: 'UC11: So luong thuc nhan tai kho dich']
+
+  indexes {
+    (transfer_id, variant_id) [unique]
+  }
+}
+
+Table inventory_adjustments {
+  adjustment_id integer [pk, increment]
+  adjustment_number varchar(50) [unique, not null]
+  branch_id integer [ref: > branches.branch_id, not null, note: 'UC12: Chi nhanh kiem ke']
+  created_by integer [ref: > users.user_id, not null, note: 'UC12: Nhan vien kho tao phieu']
+  approved_by integer [ref: > users.user_id, note: 'UC12: Quan ly chi nhanh phe duyet']
+  status varchar(30) [not null, default: 'PENDING_APPROVAL', note: 'PENDING_APPROVAL, APPROVED, REJECTED']
+  reason text [not null, note: 'UC12: Ly do dieu chinh (hu hong, that thoat, kiem dem du...)']
+  created_at timestamptz [not null, default: `now()`]
+  approved_at timestamptz
+}
+
+Table inventory_adjustment_items {
+  adjustment_item_id integer [pk, increment]
+  adjustment_id integer [ref: > inventory_adjustments.adjustment_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  system_qty integer [not null, note: 'UC12: So luong tren he thong luc kiem ke']
+  actual_qty integer [not null, note: 'UC12: So luong kiem dem thuc te (>= reserved_qty)']
+  diff_qty integer [not null, note: 'UC12: Do lech = actual_qty - system_qty']
+
+  indexes {
+    (adjustment_id, variant_id) [unique]
+  }
+}
+
+Table stock_movements {
+  movement_id bigint [pk, increment]
+  branch_id integer [ref: > branches.branch_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  movement_type varchar(40) [not null, note: 'PO_RECEIPT, TRANSFER_OUT, TRANSFER_IN, ADJUSTMENT, SALE_OUT, RETURN_RESTOCK']
+  reference_type varchar(50) [not null, note: 'purchase_receipts, stock_transfers, inventory_adjustments, orders, returns']
+  reference_id integer [not null]
+  qty_change integer [not null, note: 'So luong thay doi (+ hoac -)']
+  balance_after integer [not null, note: 'Ton kho thuc te ngay sau giao dich']
+  created_by integer [ref: > users.user_id]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+// =========================================================================
+// PHÂN HỆ 4: GIỎ HÀNG, ĐƠN HÀNG, THANH TOÁN & GIAO HÀNG (UC13 - UC19)
+// =========================================================================
+
+Table carts {
+  cart_id integer [pk, increment]
+  user_id integer [ref: - users.user_id, unique, not null, note: 'UC13: Gio hang cua khach hang']
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table cart_items {
+  cart_item_id integer [pk, increment]
+  cart_id integer [ref: > carts.cart_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  quantity integer [not null, note: 'UC13: So luong (> 0)']
+  added_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (cart_id, variant_id) [unique]
+  }
+}
+
+Table coupons {
+  coupon_id integer [pk, increment]
+  code varchar(50) [unique, not null, note: 'UC20, UC21: Ma code giam gia']
+  discount_type varchar(20) [not null, note: 'PERCENTAGE, FIXED_AMOUNT']
+  discount_value decimal(15,2) [not null]
+  min_order_amount decimal(15,2) [not null, default: 0, note: 'UC20: Dieu kien don hang toi thieu']
+  max_discount_amount decimal(15,2)
+  usage_limit integer
+  used_count integer [not null, default: 0]
+  start_date timestamptz [not null]
+  end_date timestamptz [not null, note: 'UC20: end_date > start_date']
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table orders {
+  order_id integer [pk, increment]
+  order_number varchar(50) [unique, not null]
+  customer_user_id integer [ref: > users.user_id, not null, note: 'UC14: Khach hang dat hang']
+  branch_id integer [ref: > branches.branch_id, not null, note: 'UC17: Chi nhanh xu ly don hang']
+  processed_by_staff_id integer [ref: > users.user_id, note: 'UC17: Nhan vien ban hang xu ly don']
+  coupon_id integer [ref: > coupons.coupon_id, note: 'UC14, UC21: Ma giam gia ap dung']
+  recipient_name varchar(100) [not null, note: 'UC14: Snapshot nguoi nhan']
+  recipient_phone varchar(20) [not null, note: 'UC14: Snapshot SDT nhan hang']
+  shipping_address text [not null, note: 'UC14: Snapshot dia chi giao hang']
+  subtotal_amount decimal(15,2) [not null]
+  discount_amount decimal(15,2) [not null, default: 0]
+  shipping_fee decimal(15,2) [not null, default: 0]
+  total_amount decimal(15,2) [not null]
+  payment_method varchar(30) [not null, note: 'COD, ONLINE_PAYMENT']
+  payment_status varchar(30) [not null, default: 'UNPAID', note: 'UNPAID, PAID, REFUND_PENDING, REFUNDED']
+  order_status varchar(30) [not null, default: 'PENDING_CONFIRMATION', note: 'PENDING_PAYMENT, PENDING_CONFIRMATION, CONFIRMED, PREPARING, SHIPPING, COMPLETED, CANCELLED']
+  cancel_reason text [note: 'UC19: Ly do huy don']
+  cancelled_by integer [ref: > users.user_id, note: 'UC19: Khach hang hoac NV ban hang huy']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table order_items {
+  order_item_id integer [pk, increment]
+  order_id integer [ref: > orders.order_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  quantity integer [not null]
+  unit_price decimal(15,2) [not null, note: 'UC14: Snapshot gia ban tai thoi diem dat']
+  unit_cost decimal(15,2) [not null, note: 'UC25: Snapshot gia von phuc vu bao cao kinh doanh']
+  line_total decimal(15,2) [not null]
+
+  indexes {
+    (order_id, variant_id) [unique]
+  }
+}
+
+Table order_status_history {
+  history_id integer [pk, increment]
+  order_id integer [ref: > orders.order_id, not null, note: 'UC16: Lich su tien trinh don hang']
+  status varchar(30) [not null]
+  note text
+  changed_by integer [ref: > users.user_id]
+  changed_at timestamptz [not null, default: `now()`]
+}
+
+Table payments {
+  payment_id integer [pk, increment]
+  order_id integer [ref: > orders.order_id, not null, note: 'UC15: Thanh toan don hang']
+  payment_method varchar(30) [not null, note: 'COD, VNPAY, MOMO, BANK_TRANSFER']
+  amount decimal(15,2) [not null]
+  transaction_ref varchar(100) [unique, note: 'Ma giao dich cong thanh toan']
+  status varchar(30) [not null, default: 'PENDING', note: 'PENDING (COD chua thu tien), SUCCESS, FAILED']
+  paid_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table shipments {
+  shipment_id integer [pk, increment]
+  order_id integer [ref: - orders.order_id, unique, not null, note: 'UC18: Quan ly giao hang']
+  carrier_name varchar(100) [note: 'Don vi van chuyen (GHN, GHTK...)']
+  tracking_number varchar(100) [unique, note: 'UC18: Ma van don']
+  shipping_status varchar(30) [not null, default: 'WAITING_PICKUP', note: 'WAITING_PICKUP, HANDED_TO_CARRIER, IN_TRANSIT, DELIVERED, DELIVERY_FAILED']
+  updated_by integer [ref: > users.user_id, note: 'UC18: NV ban hang cap nhat']
+  shipped_at timestamptz
+  delivered_at timestamptz
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+// =========================================================================
+// PHÂN HỆ 5: KHUYẾN MÃI, ĐÁNH GIÁ & TRẢ HÀNG - HOÀN TIỀN (UC20 - UC25)
+// =========================================================================
+
+Table coupon_usages {
+  usage_id integer [pk, increment]
+  coupon_id integer [ref: > coupons.coupon_id, not null]
+  user_id integer [ref: > users.user_id, not null]
+  order_id integer [ref: - orders.order_id, unique, not null]
+  discount_amount decimal(15,2) [not null]
+  used_at timestamptz [not null, default: `now()`]
+}
+
+Table product_reviews {
+  review_id integer [pk, increment]
+  order_item_id integer [ref: - order_items.order_item_id, unique, not null, note: 'UC22: Chi danh gia SP da mua & moi muc mua danh gia 1 lan']
+  user_id integer [ref: > users.user_id, not null]
+  product_id integer [ref: > products.product_id, not null]
+  rating integer [not null, note: 'UC22: 1 den 5 sao']
+  comment text [note: 'UC22: Noi dung nhan xet']
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table returns {
+  return_id integer [pk, increment]
+  return_number varchar(50) [unique, not null]
+  order_id integer [ref: > orders.order_id, not null, note: 'UC23: Don hang yeu cau tra']
+  customer_user_id integer [ref: > users.user_id, not null]
+  return_branch_id integer [ref: > branches.branch_id, not null, note: 'UC24: Chi nhanh nhan hang tra ve']
+  processed_by_staff_id integer [ref: > users.user_id, note: 'UC24: NV ban hang xu ly tra hang']
+  reason text [not null, note: 'UC23: Ly do tra hang']
+  evidence_images text [note: 'UC23: JSON/URL hinh anh minh chung']
+  status varchar(30) [not null, default: 'REQUESTED', note: 'REQUESTED, APPROVED, REJECTED, COMPLETED']
+  rejection_reason text
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+}
+
+Table return_items {
+  return_item_id integer [pk, increment]
+  return_id integer [ref: > returns.return_id, not null]
+  order_item_id integer [ref: > order_items.order_item_id, not null]
+  variant_id integer [ref: > product_variants.variant_id, not null]
+  requested_qty integer [not null, note: 'UC23: So luong khach yeu cau tra']
+  received_qty integer [default: 0, note: 'UC24: So luong thuc te nhan lai']
+  restock_qty integer [default: 0, note: 'UC24: So luong du dieu kien nhap lai kho (<= received_qty)']
+  item_condition varchar(50) [note: 'UC24: GOOD (Nhap lai kho), DAMAGED (Hu hong - khong nhap kho)']
+  refund_amount decimal(15,2) [not null, default: 0]
+
+  indexes {
+    (return_id, order_item_id) [unique]
+  }
+}
+
+Table refunds {
+  refund_id integer [pk, increment]
+  order_id integer [ref: > orders.order_id, not null, note: 'Hoan tien do Huy don (UC19) hoac Tra hang (UC24)']
+  return_id integer [ref: - returns.return_id, unique, note: 'Nullable neu hoan tien do huy don truoc khi giao (UC19)']
+  amount decimal(15,2) [not null]
+  refund_method varchar(30) [not null, note: 'BANK_TRANSFER, ORIGINAL_PAYMENT_METHOD']
+  status varchar(30) [not null, default: 'PENDING', note: 'PENDING, COMPLETED, FAILED']
+  processed_by integer [ref: > users.user_id, note: 'UC24: NV ban hang xac nhan hoan tien']
+  transaction_ref varchar(100)
+  refunded_at timestamptz
+  created_at timestamptz [not null, default: `now()`]
+}
+
+// =========================================================================
+// GOM NHÓM BẢNG TRÊN SƠ ĐỒ ERD (TABLE GROUPS)
+// =========================================================================
+
+TableGroup TG_01_Users_RBAC_Branch {
+  users
+  roles
+  permissions
+  user_roles
+  role_permissions
+  branches
+  user_branch_access
+  customer_addresses
+}
+
+TableGroup TG_02_Catalog_Suppliers {
+  categories
+  products
+  product_variants
+  product_images
+  suppliers
+}
+
+TableGroup TG_03_Inventory_Procurement {
+  inventory_levels
+  purchase_orders
+  purchase_order_items
+  purchase_receipts
+  purchase_receipt_items
+  stock_transfers
+  stock_transfer_items
+  inventory_adjustments
+  inventory_adjustment_items
+  stock_movements
+}
+
+TableGroup TG_04_Cart_Orders_Shipping {
+  carts
+  cart_items
+  orders
+  order_items
+  order_status_history
+  payments
+  shipments
+}
+
+TableGroup TG_05_Promotions_Reviews_Returns {
+  coupons
+  coupon_usages
+  product_reviews
+  returns
+  return_items
+  refunds
+}
