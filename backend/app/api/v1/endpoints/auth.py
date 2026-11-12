@@ -32,10 +32,6 @@ def _build_user_profile(user: User) -> UserProfileResponse:
         created_at=user.created_at,
     )
 
-
-@router.post(
-    "/register", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED
-)
 @router.post(
     "/register", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED
 )
