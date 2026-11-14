@@ -2,10 +2,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.inventory import (
@@ -42,8 +42,11 @@ class Category(Base):
     products: Mapped[list["Product"]] = relationship(back_populates="category")
 
 
-class Product(Base):
+class Product(Base, TimestampMixin):
     __tablename__ = "products"
+    __table_args__ = (
+        Index("idx_products_category_active_price", "category_id", "is_active", "base_price"),
+    )
 
     product_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.category_id"), nullable=False)
@@ -54,20 +57,20 @@ class Product(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
-
     category: Mapped["Category"] = relationship(back_populates="products")
-    variants: Mapped[list["ProductVariant"]] = relationship(back_populates="product")
-    images: Mapped[list["ProductImage"]] = relationship(back_populates="product")
+    variants: Mapped[list["ProductVariant"]] = relationship(
+        back_populates="product", cascade="all, delete-orphan"
+    )
+    images: Mapped[list["ProductImage"]] = relationship(
+        back_populates="product", cascade="all, delete-orphan"
+    )
 
 
-class ProductVariant(Base):
+class ProductVariant(Base, TimestampMixin):
     __tablename__ = "product_variants"
+    __table_args__ = (
+        Index("ix_product_variants_product_id", "product_id"),
+    )
 
     variant_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), nullable=False)
@@ -81,13 +84,6 @@ class ProductVariant(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
-
     product: Mapped["Product"] = relationship(back_populates="variants")
     images: Mapped[list["ProductImage"]] = relationship(back_populates="variant")
     inventory_levels: Mapped[list["InventoryLevel"]] = relationship()
@@ -102,6 +98,10 @@ class ProductVariant(Base):
 
 class ProductImage(Base):
     __tablename__ = "product_images"
+    __table_args__ = (
+        Index("ix_product_images_product_id", "product_id"),
+        Index("ix_product_images_variant_id", "variant_id"),
+    )
 
     image_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), nullable=False)
@@ -120,7 +120,7 @@ class ProductImage(Base):
     variant: Mapped["ProductVariant | None"] = relationship(back_populates="images")
 
 
-class Supplier(Base):
+class Supplier(Base, TimestampMixin):
     __tablename__ = "suppliers"
 
     supplier_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -133,11 +133,4 @@ class Supplier(Base):
     is_active: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
-    )
-
     purchase_orders: Mapped[list["PurchaseOrder"]] = relationship(back_populates="supplier")

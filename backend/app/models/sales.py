@@ -2,12 +2,25 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
+    from app.models.after_sales import CouponUsage, ProductReview, Refund, Return
     from app.models.catalog import ProductVariant
     from app.models.rbac import Branch, User
 
@@ -25,12 +38,17 @@ class Cart(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="cart")
-    items: Mapped[list["CartItem"]] = relationship(back_populates="cart")
+    items: Mapped[list["CartItem"]] = relationship(
+        back_populates="cart", cascade="all, delete-orphan"
+    )
 
 
 class CartItem(Base):
     __tablename__ = "cart_items"
-    __table_args__ = (Index("ix_cart_items_cart_variant", "cart_id", "variant_id", unique=True),)
+    __table_args__ = (
+        Index("ix_cart_items_cart_variant", "cart_id", "variant_id", unique=True),
+        CheckConstraint("quantity > 0", name="chk_cart_items_quantity_positive"),
+    )
 
     cart_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     cart_id: Mapped[int] = mapped_column(ForeignKey("carts.cart_id"), nullable=False)
@@ -48,6 +66,12 @@ class CartItem(Base):
 
 class Coupon(Base):
     __tablename__ = "coupons"
+    __table_args__ = (
+        CheckConstraint(
+            "end_date > start_date AND discount_value > 0",
+            name="chk_coupons_dates_and_discount",
+        ),
+    )
 
     coupon_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -64,7 +88,7 @@ class Coupon(Base):
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     is_active: Mapped[bool] = mapped_column(
-        default=True, server_default="true", nullable=False
+        Boolean, default=True, server_default="true", nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -73,8 +97,21 @@ class Coupon(Base):
     orders: Mapped[list["Order"]] = relationship(back_populates="coupon")
 
 
-class Order(Base):
+class Order(Base, TimestampMixin):
     __tablename__ = "orders"
+    __table_args__ = (
+        Index(
+            "idx_orders_branch_status_created",
+            "branch_id",
+            "order_status",
+            text("created_at DESC"),
+        ),
+        Index(
+            "idx_orders_customer_created",
+            "customer_user_id",
+            text("created_at DESC"),
+        ),
+    )
 
     order_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -107,30 +144,31 @@ class Order(Base):
     )
     cancel_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     cancelled_by: Mapped[int | None] = mapped_column(ForeignKey("users.user_id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
     customer: Mapped["User"] = relationship(foreign_keys=[customer_user_id])
     branch: Mapped["Branch"] = relationship()
     processed_by: Mapped["User | None"] = relationship(foreign_keys=[processed_by_staff_id])
     coupon: Mapped["Coupon | None"] = relationship(back_populates="orders")
     cancelling_user: Mapped["User | None"] = relationship(foreign_keys=[cancelled_by])
-    items: Mapped[list["OrderItem"]] = relationship(back_populates="order")
+    items: Mapped[list["OrderItem"]] = relationship(
+        back_populates="order", cascade="all, delete-orphan"
+    )
     status_history: Mapped[list["OrderStatusHistory"]] = relationship(back_populates="order")
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
-    shipment: Mapped["Shipment | None"] = relationship(back_populates="order")
+    shipment: Mapped["Shipment | None"] = relationship(
+        back_populates="order", cascade="all, delete-orphan", single_parent=True
+    )
+    coupon_usage: Mapped["CouponUsage | None"] = relationship(back_populates="order")
+    returns: Mapped[list["Return"]] = relationship(back_populates="order")
+    refunds: Mapped[list["Refund"]] = relationship(back_populates="order")
 
 
 class OrderItem(Base):
     __tablename__ = "order_items"
-    __table_args__ = (Index("ix_order_items_order_variant", "order_id", "variant_id", unique=True),)
+    __table_args__ = (
+        Index("ix_order_items_order_variant", "order_id", "variant_id", unique=True),
+        Index("ix_order_items_variant_id", "variant_id"),
+        CheckConstraint("quantity > 0", name="chk_order_items_quantity_positive"),
+    )
 
     order_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.order_id"), nullable=False)
@@ -144,10 +182,14 @@ class OrderItem(Base):
 
     order: Mapped["Order"] = relationship(back_populates="items")
     variant: Mapped["ProductVariant"] = relationship(back_populates="order_items")
+    product_review: Mapped["ProductReview | None"] = relationship(
+        back_populates="order_item"
+    )
 
 
 class OrderStatusHistory(Base):
     __tablename__ = "order_status_history"
+    __table_args__ = (Index("ix_order_status_history_order_id", "order_id"),)
 
     history_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.order_id"), nullable=False)
@@ -164,6 +206,7 @@ class OrderStatusHistory(Base):
 
 class Payment(Base):
     __tablename__ = "payments"
+    __table_args__ = (Index("ix_payments_order_id", "order_id"),)
 
     payment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.order_id"), nullable=False)

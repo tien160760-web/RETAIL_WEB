@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -14,7 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.models.base import Base
+from app.models.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.catalog import Product, ProductVariant
@@ -43,6 +44,10 @@ class CouponUsage(Base):
 
 class ProductReview(Base):
     __tablename__ = "product_reviews"
+    __table_args__ = (
+        Index("ix_product_reviews_product_id", "product_id"),
+        CheckConstraint("rating BETWEEN 1 AND 5", name="chk_product_reviews_rating_range"),
+    )
 
     review_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     order_item_id: Mapped[int] = mapped_column(
@@ -56,13 +61,17 @@ class ProductReview(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    order_item: Mapped["OrderItem"] = relationship()
+    order_item: Mapped["OrderItem"] = relationship(back_populates="product_review")
     user: Mapped["User"] = relationship()
     product: Mapped["Product"] = relationship()
 
 
-class Return(Base):
+class Return(Base, TimestampMixin):
     __tablename__ = "returns"
+    __table_args__ = (
+        Index("ix_returns_order_id", "order_id"),
+        Index("ix_returns_return_branch_id", "return_branch_id"),
+    )
 
     return_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     return_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
@@ -80,27 +89,27 @@ class Return(Base):
         String(30), default="REQUESTED", server_default="REQUESTED", nullable=False
     )
     rejection_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
-
-    order: Mapped["Order"] = relationship()
+    order: Mapped["Order"] = relationship(back_populates="returns")
     customer: Mapped["User"] = relationship(foreign_keys=[customer_user_id])
     branch: Mapped["Branch"] = relationship(foreign_keys=[return_branch_id])
     processed_by: Mapped["User | None"] = relationship(foreign_keys=[processed_by_staff_id])
-    items: Mapped[list["ReturnItem"]] = relationship(back_populates="return_record")
+    items: Mapped[list["ReturnItem"]] = relationship(
+        back_populates="return_record", cascade="all, delete-orphan"
+    )
+    refund: Mapped["Refund | None"] = relationship(back_populates="return_record")
 
 
 class ReturnItem(Base):
     __tablename__ = "return_items"
     __table_args__ = (
         Index("ix_return_items_return_order_item", "return_id", "order_item_id", unique=True),
+        CheckConstraint(
+            "requested_qty > 0 "
+            "AND (received_qty IS NULL OR received_qty >= 0) "
+            "AND (restock_qty IS NULL OR restock_qty >= 0) "
+            "AND (received_qty IS NULL OR restock_qty IS NULL OR restock_qty <= received_qty)",
+            name="chk_return_items_quantity_valid",
+        ),
     )
 
     return_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -148,6 +157,6 @@ class Refund(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    order: Mapped["Order"] = relationship()
-    return_record: Mapped["Return | None"] = relationship()
+    order: Mapped["Order"] = relationship(back_populates="refunds")
+    return_record: Mapped["Return | None"] = relationship(back_populates="refund")
     processor: Mapped["User | None"] = relationship(foreign_keys=[processed_by])
