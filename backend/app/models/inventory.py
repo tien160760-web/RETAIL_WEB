@@ -1,1 +1,281 @@
-# Model chi nhánh, tồn kho, đơn nhập và điều chuyển.
+from datetime import date, datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING
+
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.catalog import ProductVariant, Supplier
+    from app.models.rbac import Branch, User
+
+
+class InventoryLevel(Base):
+    __tablename__ = "inventory_levels"
+    __table_args__ = (
+        Index("ix_inventory_levels_branch_variant", "branch_id", "variant_id", unique=True),
+    )
+
+    inventory_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.branch_id"), nullable=False)
+    variant_id: Mapped[int] = mapped_column(
+        ForeignKey("product_variants.variant_id"), nullable=False
+    )
+    on_hand_qty: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    reserved_qty: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    reorder_level: Mapped[int] = mapped_column(
+        Integer, default=5, server_default="5", nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    branch: Mapped["Branch"] = relationship()
+    variant: Mapped["ProductVariant"] = relationship(back_populates="inventory_levels")
+
+    @property
+    def available_qty(self) -> int:
+        return self.on_hand_qty - self.reserved_qty
+
+
+class PurchaseOrder(Base):
+    __tablename__ = "purchase_orders"
+
+    po_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    po_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    supplier_id: Mapped[int] = mapped_column(ForeignKey("suppliers.supplier_id"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.branch_id"), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+    expected_delivery_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(15, 2), default=Decimal("0"), server_default="0", nullable=False
+    )
+    status: Mapped[str] = mapped_column(
+        String(30), default="PENDING_RECEIPT", server_default="PENDING_RECEIPT", nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    supplier: Mapped["Supplier"] = relationship(back_populates="purchase_orders")
+    branch: Mapped["Branch"] = relationship()
+    creator: Mapped["User"] = relationship(foreign_keys=[created_by])
+    items: Mapped[list["PurchaseOrderItem"]] = relationship(back_populates="purchase_order")
+    receipts: Mapped[list["PurchaseReceipt"]] = relationship(back_populates="purchase_order")
+
+
+class PurchaseOrderItem(Base):
+    __tablename__ = "purchase_order_items"
+    __table_args__ = (Index("ix_purchase_order_items_po_variant", "po_id", "variant_id", unique=True),)
+
+    po_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    po_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.po_id"), nullable=False)
+    variant_id: Mapped[int] = mapped_column(
+        ForeignKey("product_variants.variant_id"), nullable=False
+    )
+    ordered_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    received_qty: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+
+    purchase_order: Mapped["PurchaseOrder"] = relationship(back_populates="items")
+    variant: Mapped["ProductVariant"] = relationship(back_populates="purchase_order_items")
+
+
+class PurchaseReceipt(Base):
+    __tablename__ = "purchase_receipts"
+
+    receipt_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    receipt_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    po_id: Mapped[int] = mapped_column(ForeignKey("purchase_orders.po_id"), nullable=False)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.branch_id"), nullable=False)
+    received_by: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    purchase_order: Mapped["PurchaseOrder"] = relationship(back_populates="receipts")
+    branch: Mapped["Branch"] = relationship()
+    receiver: Mapped["User"] = relationship(foreign_keys=[received_by])
+    items: Mapped[list["PurchaseReceiptItem"]] = relationship(back_populates="receipt")
+
+
+class PurchaseReceiptItem(Base):
+    __tablename__ = "purchase_receipt_items"
+    __table_args__ = (
+        Index("ix_purchase_receipt_items_receipt_variant", "receipt_id", "variant_id", unique=True),
+    )
+
+    receipt_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    receipt_id: Mapped[int] = mapped_column(ForeignKey("purchase_receipts.receipt_id"), nullable=False)
+    po_item_id: Mapped[int] = mapped_column(
+        ForeignKey("purchase_order_items.po_item_id"), nullable=False
+    )
+    variant_id: Mapped[int] = mapped_column(
+        ForeignKey("product_variants.variant_id"), nullable=False
+    )
+    received_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_cost: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+
+    receipt: Mapped["PurchaseReceipt"] = relationship(back_populates="items")
+    po_item: Mapped["PurchaseOrderItem"] = relationship()
+    variant: Mapped["ProductVariant"] = relationship(back_populates="purchase_receipt_items")
+
+
+class StockTransfer(Base):
+    __tablename__ = "stock_transfers"
+
+    transfer_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    transfer_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    from_branch_id: Mapped[int] = mapped_column(
+        ForeignKey("branches.branch_id"), nullable=False
+    )
+    to_branch_id: Mapped[int] = mapped_column(ForeignKey("branches.branch_id"), nullable=False)
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+    approved_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id"), nullable=True
+    )
+    received_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(30), default="PENDING", server_default="PENDING", nullable=False
+    )
+    shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    from_branch: Mapped["Branch"] = relationship(foreign_keys=[from_branch_id])
+    to_branch: Mapped["Branch"] = relationship(foreign_keys=[to_branch_id])
+    requester: Mapped["User"] = relationship(foreign_keys=[requested_by])
+    approver: Mapped["User | None"] = relationship(foreign_keys=[approved_by])
+    receiver: Mapped["User | None"] = relationship(foreign_keys=[received_by])
+    items: Mapped[list["StockTransferItem"]] = relationship(back_populates="transfer")
+
+
+class StockTransferItem(Base):
+    __tablename__ = "stock_transfer_items"
+    __table_args__ = (
+        Index("ix_stock_transfer_items_transfer_variant", "transfer_id", "variant_id", unique=True),
+    )
+
+    transfer_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    transfer_id: Mapped[int] = mapped_column(ForeignKey("stock_transfers.transfer_id"), nullable=False)
+    variant_id: Mapped[int] = mapped_column(
+        ForeignKey("product_variants.variant_id"), nullable=False
+    )
+    shipped_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    received_qty: Mapped[int | None] = mapped_column(
+        Integer, default=0, server_default="0", nullable=True
+    )
+
+    transfer: Mapped["StockTransfer"] = relationship(back_populates="items")
+    variant: Mapped["ProductVariant"] = relationship(back_populates="stock_transfer_items")
+
+
+class InventoryAdjustment(Base):
+    __tablename__ = "inventory_adjustments"
+
+    adjustment_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    adjustment_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.branch_id"), nullable=False)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.user_id"), nullable=False)
+    approved_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id"), nullable=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(30), default="PENDING_APPROVAL", server_default="PENDING_APPROVAL", nullable=False
+    )
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    branch: Mapped["Branch"] = relationship()
+    creator: Mapped["User"] = relationship(foreign_keys=[created_by])
+    approver: Mapped["User | None"] = relationship(foreign_keys=[approved_by])
+    items: Mapped[list["InventoryAdjustmentItem"]] = relationship(back_populates="adjustment")
+
+
+class InventoryAdjustmentItem(Base):
+    __tablename__ = "inventory_adjustment_items"
+    __table_args__ = (
+        Index(
+            "ix_inventory_adjustment_items_adjustment_variant",
+            "adjustment_id",
+            "variant_id",
+            unique=True,
+        ),
+    )
+
+    adjustment_item_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    adjustment_id: Mapped[int] = mapped_column(
+        ForeignKey("inventory_adjustments.adjustment_id"), nullable=False
+    )
+    variant_id: Mapped[int] = mapped_column(
+        ForeignKey("product_variants.variant_id"), nullable=False
+    )
+    system_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    actual_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+    diff_qty: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    adjustment: Mapped["InventoryAdjustment"] = relationship(back_populates="items")
+    variant: Mapped["ProductVariant"] = relationship(
+        back_populates="inventory_adjustment_items"
+    )
+
+
+class StockMovement(Base):
+    __tablename__ = "stock_movements"
+
+    movement_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    branch_id: Mapped[int] = mapped_column(ForeignKey("branches.branch_id"), nullable=False)
+    variant_id: Mapped[int] = mapped_column(
+        ForeignKey("product_variants.variant_id"), nullable=False
+    )
+    movement_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    reference_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    reference_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    qty_change: Mapped[int] = mapped_column(Integer, nullable=False)
+    balance_after: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.user_id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    branch: Mapped["Branch"] = relationship()
+    variant: Mapped["ProductVariant"] = relationship(back_populates="stock_movements")
+    creator: Mapped["User | None"] = relationship(foreign_keys=[created_by])

@@ -1,7 +1,12 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
+
 from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.sales import Cart
 
 
 class Branch(Base, TimestampMixin):
@@ -15,7 +20,9 @@ class Branch(Base, TimestampMixin):
     manager_user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.user_id", ondelete="SET NULL"), nullable=True
     )
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     manager: Mapped["User | None"] = relationship(foreign_keys=[manager_user_id])
     user_accesses: Mapped[list["UserBranchAccess"]] = relationship(
@@ -63,7 +70,9 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(100), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
 
     user_roles: Mapped[list["UserRole"]] = relationship(
         back_populates="user",
@@ -79,6 +88,7 @@ class User(Base, TimestampMixin):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    cart: Mapped["Cart | None"] = relationship(back_populates="user")
 
 
 class UserRole(Base):
@@ -140,7 +150,7 @@ class CustomerAddress(Base, TimestampMixin):
 
     address_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False
     )
     recipient_name: Mapped[str] = mapped_column(String(100), nullable=False)
     recipient_phone: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -148,6 +158,8 @@ class CustomerAddress(Base, TimestampMixin):
     ward: Mapped[str | None] = mapped_column(String(100), nullable=True)
     district: Mapped[str | None] = mapped_column(String(100), nullable=True)
     city: Mapped[str] = mapped_column(String(100), nullable=False)
-    is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     user: Mapped["User"] = relationship(back_populates="addresses")
