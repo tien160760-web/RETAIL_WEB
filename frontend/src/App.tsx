@@ -1,9 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { AnimatePresence } from 'framer-motion';
 import { AdminProvider, useAdminContext } from './context/AdminContext';
 import { AdminLayout } from './components/layout/AdminLayout';
-import { SplashIntro } from './components/layout/SplashIntro';
 import { SIDEBAR_GROUPS } from './data/mockDashboardData';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -64,99 +62,97 @@ function AppRoutes() {
 
   return (
     <AdminLayout pageTitle={pageTitle}>
-      <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
-          <Route
-            path="/"
-            element={
-              <RoleProtected menuId="dashboard">
-                <DashboardPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/catalog"
-            element={
-              <RoleProtected menuId="catalog">
-                <CatalogPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/catalog/new"
-            element={
-              <RoleProtected menuId="catalog">
-                <ProductFormPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/catalog/:id/edit"
-            element={
-              <RoleProtected menuId="catalog">
-                <ProductFormPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/vouchers"
-            element={
-              <RoleProtected menuId="vouchers">
-                <VouchersPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/suppliers"
-            element={
-              <RoleProtected menuId="suppliers">
-                <SuppliersPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/procurement"
-            element={
-              <RoleProtected menuId="procurement">
-                <ProcurementPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/inventory"
-            element={
-              <RoleProtected menuId="inventory">
-                <InventoryPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/warehouse-tickets"
-            element={
-              <RoleProtected menuId="warehouse-tickets">
-                <WarehouseTicketsPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/orders"
-            element={
-              <RoleProtected menuId="orders">
-                <OrdersPage />
-              </RoleProtected>
-            }
-          />
-          <Route
-            path="/organization"
-            element={
-              <RoleProtected menuId="organization">
-                <OrganizationPage />
-              </RoleProtected>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AnimatePresence>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <RoleProtected menuId="dashboard">
+              <DashboardPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/catalog"
+          element={
+            <RoleProtected menuId="catalog">
+              <CatalogPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/catalog/new"
+          element={
+            <RoleProtected menuId="catalog">
+              <ProductFormPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/catalog/:id/edit"
+          element={
+            <RoleProtected menuId="catalog">
+              <ProductFormPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/vouchers"
+          element={
+            <RoleProtected menuId="vouchers">
+              <VouchersPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/suppliers"
+          element={
+            <RoleProtected menuId="suppliers">
+              <SuppliersPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/procurement"
+          element={
+            <RoleProtected menuId="procurement">
+              <ProcurementPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/inventory"
+          element={
+            <RoleProtected menuId="inventory">
+              <InventoryPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/warehouse-tickets"
+          element={
+            <RoleProtected menuId="warehouse-tickets">
+              <WarehouseTicketsPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <RoleProtected menuId="orders">
+              <OrdersPage />
+            </RoleProtected>
+          }
+        />
+        <Route
+          path="/organization"
+          element={
+            <RoleProtected menuId="organization">
+              <OrganizationPage />
+            </RoleProtected>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     </AdminLayout>
   );
 }
@@ -165,7 +161,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <AdminProvider>
-        <SplashIntro />
         <AppRoutes />
       </AdminProvider>
     </BrowserRouter>
