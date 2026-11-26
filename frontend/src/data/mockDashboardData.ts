@@ -223,23 +223,43 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
 export const INITIAL_CATALOG_CATEGORIES: CatalogCategory[] = [
   {
     id: 'ao-thun',
-    name: 'Áo thun & Polo',
-    description: 'Các dòng áo thun cotton, áo polo pima nam nữ mặc hàng ngày',
+    name: 'Thời trang & May mặc',
+    description: 'Quần áo, trang phục và phụ kiện thời trang',
+  },
+  {
+    id: 'dien-tu',
+    name: 'Điện tử & Công nghệ',
+    description: 'Điện thoại, laptop, tai nghe và thiết bị công nghệ',
+  },
+  {
+    id: 'gia-dung',
+    name: 'Đồ gia dụng & Đời sống',
+    description: 'Thiết bị nhà bếp, đồ dùng gia đình và tiện ích',
+  },
+  {
+    id: 'thuc-pham',
+    name: 'Thực phẩm & Đồ uống',
+    description: 'Đồ ăn đóng gói, nước giải khát và nhu yếu phẩm',
+  },
+  {
+    id: 'my-pham',
+    name: 'Mỹ phẩm & Chăm sóc cá nhân',
+    description: 'Sản phẩm chăm sóc da, nước hoa và làm đẹp',
   },
   {
     id: 'quan-denim',
     name: 'Quần & Denim',
-    description: 'Quần jeans co giãn, quần kaki chinos công sở và quần short',
+    description: 'Quần jeans, kaki và quần short',
   },
   {
     id: 'ao-khoac',
     name: 'Áo khoác',
-    description: 'Áo khoác gió chống nước, cardigan và áo khoác thu đông',
+    description: 'Áo khoác gió, cardigan và áo khoác thu đông',
   },
   {
     id: 'phu-kien',
-    name: 'Phụ kiện',
-    description: 'Túi đeo chéo canvas, mũ lưỡi trai và thắt lưng da',
+    name: 'Phụ kiện & Túi xách',
+    description: 'balo, túi đeo chéo, giày dép và phụ kiện',
   },
 ];
 
