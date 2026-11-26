@@ -149,6 +149,7 @@ export interface ProductVariantItem {
   color: string;
   size: string;
   price: number;
+  stock?: number;
   imageUrl?: string;
 }
 
@@ -159,6 +160,7 @@ export interface CatalogProduct {
   basePrice: number;
   description: string;
   imageUrl?: string;
+  images?: string[];
   colorHex: string;
   isActive: boolean;
   variants: ProductVariantItem[];

@@ -271,12 +271,18 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     basePrice: 450_000,
     description: 'Chất liệu cotton Pima mềm mịn, thoáng khí, giữ form tốt sau nhiều lần giặt.',
     imageUrl: 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1586363104862-3a5e2ab60d99?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=600&q=80',
+    ],
     colorHex: '#1E293B',
     isActive: true,
     variants: [
-      { id: 'v-1', sku: 'APL-DEN-M', color: 'Đen', size: 'M', price: 450_000 },
-      { id: 'v-2', sku: 'APL-DEN-L', color: 'Đen', size: 'L', price: 450_000 },
-      { id: 'v-3', sku: 'APL-XNH-L', color: 'Xanh Navy', size: 'L', price: 470_000 },
+      { id: 'v-1', sku: 'APL-DEN-M', color: 'Đen', size: 'M', price: 450_000, stock: 35 },
+      { id: 'v-2', sku: 'APL-DEN-L', color: 'Đen', size: 'L', price: 450_000, stock: 42 },
+      { id: 'v-3', sku: 'APL-XNH-M', color: 'Xanh Navy', size: 'M', price: 470_000, stock: 28 },
+      { id: 'v-4', sku: 'APL-XNH-L', color: 'Xanh Navy', size: 'L', price: 470_000, stock: 50 },
     ],
   },
   {
@@ -286,12 +292,17 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     basePrice: 650_000,
     description: 'Denim co giãn 2% spandex, form slimfit trẻ trung phù hợp đi làm và đi chơi.',
     imageUrl: 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=600&q=80',
+    ],
     colorHex: '#1D4ED8',
     isActive: true,
     variants: [
-      { id: 'v-4', sku: 'QJN-XNH-30', color: 'Xanh Navy', size: '30', price: 650_000 },
-      { id: 'v-5', sku: 'QJN-XNH-31', color: 'Xanh Navy', size: '31', price: 650_000 },
-      { id: 'v-6', sku: 'QJN-DEN-32', color: 'Đen', size: '32', price: 670_000 },
+      { id: 'v-5', sku: 'QJN-XNH-30', color: 'Xanh Navy', size: '30', price: 650_000, stock: 20 },
+      { id: 'v-6', sku: 'QJN-XNH-31', color: 'Xanh Navy', size: '31', price: 650_000, stock: 25 },
+      { id: 'v-7', sku: 'QJN-DEN-30', color: 'Đen', size: '30', price: 670_000, stock: 18 },
+      { id: 'v-8', sku: 'QJN-DEN-31', color: 'Đen', size: '31', price: 670_000, stock: 30 },
     ],
   },
   {
@@ -301,11 +312,15 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     basePrice: 800_000,
     description: 'Vải dù trượt nước kết hợp lớp lót lưới thoáng khí, có mũ tháo rời.',
     imageUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=600&q=80',
+    ],
     colorHex: '#0F766E',
     isActive: true,
     variants: [
-      { id: 'v-7', sku: 'AKG-REU-L', color: 'Xanh Rêu', size: 'L', price: 800_000 },
-      { id: 'v-8', sku: 'AKG-REU-XL', color: 'Xanh Rêu', size: 'XL', price: 820_000 },
+      { id: 'v-9', sku: 'AKG-REU-L', color: 'Xanh Rêu', size: 'L', price: 800_000, stock: 15 },
+      { id: 'v-10', sku: 'AKG-REU-XL', color: 'Xanh Rêu', size: 'XL', price: 820_000, stock: 12 },
     ],
   },
   {
@@ -315,10 +330,13 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     basePrice: 490_000,
     description: 'Vải canvas dày dặn chống thấm nhẹ, ngăn đựng phụ kiện tiện lợi.',
     imageUrl: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80',
+    ],
     colorHex: '#B45309',
     isActive: true,
     variants: [
-      { id: 'v-9', sku: 'TDC-NAU-F', color: 'Nâu Đất', size: 'FreeSize', price: 490_000 },
+      { id: 'v-11', sku: 'TDC-NAU-F', color: 'Nâu Đất', size: 'FreeSize', price: 490_000, stock: 40 },
     ],
   },
 ];
