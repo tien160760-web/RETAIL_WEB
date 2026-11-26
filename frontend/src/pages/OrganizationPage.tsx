@@ -9,6 +9,7 @@ import {
   Plus,
   Power,
   Search,
+  ShieldAlert,
   ShieldCheck,
   Users,
   X,
@@ -40,6 +41,7 @@ function getInitials(name: string) {
 
 export function OrganizationPage() {
   const {
+    currentUser,
     branches,
     staffAccounts,
     addStaffAccount,
@@ -60,9 +62,13 @@ export function OrganizationPage() {
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPassword, setStaffPassword] = useState('123');
   const [staffPhone, setStaffPhone] = useState('');
+  // UC04 Step 3: Vai trò được phép phân công cho nhân viên: Quản lý chi nhánh, Nhân viên kho hoặc Nhân viên bán hàng
   const [staffRole, setStaffRole] = useState<UserRole>('SALES_STAFF');
   const [staffBranchId, setStaffBranchId] = useState<string>('cn-hn');
   const [staffErr, setStaffErr] = useState<string | null>(null);
+
+  // Strict UC04 Precondition Check: ONLY ADMIN can access Staff Management
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -91,6 +97,22 @@ export function OrganizationPage() {
     });
   }, [staffAccounts, roleFilter, searchQuery]);
 
+  if (!isAdmin) {
+    return (
+      <div className="my-8 max-w-[520px] mx-auto polaris-card p-6 text-center space-y-3">
+        <div className="w-12 h-12 rounded-full bg-[#FEF2F2] border border-[#FECACA] text-[#DC2626] flex items-center justify-center mx-auto">
+          <ShieldAlert className="w-6 h-6" />
+        </div>
+        <h2 className="text-[17px] font-bold text-[#09090B]">
+          Chỉ Quản trị viên (Admin) mới được quản lý nhân viên (UC04)
+        </h2>
+        <p className="text-[13px] text-[#52525B]">
+          Tài khoản hiện tại không thỏa mãn tiền điều kiện của UC04.
+        </p>
+      </div>
+    );
+  }
+
   const openCreateStaff = () => {
     setEditingStaff(null);
     setStaffName('');
@@ -109,7 +131,7 @@ export function OrganizationPage() {
     setStaffEmail(s.email);
     setStaffPassword(s.password);
     setStaffPhone(s.phone);
-    setStaffRole(s.role);
+    setStaffRole(s.role === 'ADMIN' ? 'BRANCH_MANAGER' : s.role);
     setStaffBranchId(s.branchId ?? branches[0]?.id ?? 'cn-hn');
     setStaffErr(null);
     setIsStaffModalOpen(true);
@@ -118,43 +140,79 @@ export function OrganizationPage() {
   const handleSaveStaff = (e: React.FormEvent) => {
     e.preventDefault();
     setStaffErr(null);
+    const cleanName = staffName.trim();
     const cleanEmail = staffEmail.trim().toLowerCase();
-    if (!staffName.trim() || !cleanEmail || !staffPhone.trim()) {
-      setStaffErr('Vui lòng nhập đầy đủ Họ tên, Email và Số điện thoại.');
+    const cleanPhone = staffPhone.trim();
+
+    if (!cleanName || !cleanEmail || !cleanPhone) {
+      setStaffErr(
+        'Ngoại lệ UC04: Thông tin nhập không hợp lệ hoặc thiếu trường bắt buộc (Họ tên, Email, SĐT).'
+      );
       return;
     }
+
+    if (!/^0\d{9,10}$/.test(cleanPhone)) {
+      setStaffErr(
+        'Ngoại lệ UC04: Số điện thoại nhân viên không hợp lệ (cần 10-11 chữ số, bắt đầu bằng 0).'
+      );
+      return;
+    }
+
     if (
       staffAccounts.some(
         (s) => s.email.toLowerCase() === cleanEmail && s.id !== editingStaff?.id
       )
     ) {
-      setStaffErr(`Email "${cleanEmail}" đã tồn tại trong hệ thống.`);
+      setStaffErr(`Ngoại lệ UC04: Email "${cleanEmail}" đã tồn tại trong hệ thống.`);
       return;
     }
 
-    const branchVal = staffRole === 'ADMIN' ? null : staffBranchId;
+    const branchExists = branches.some((b) => b.id === staffBranchId);
+    if (!branchExists) {
+      setStaffErr('Ngoại lệ UC04: Chi nhánh làm việc không tồn tại.');
+      return;
+    }
+
+    // UC04 Step 3: Vai trò nhân viên được phân công: Quản lý chi nhánh, Nhân viên kho hoặc Nhân viên bán hàng
+    const allowedStaffRoles: UserRole[] = [
+      'BRANCH_MANAGER',
+      'WAREHOUSE_STAFF',
+      'SALES_STAFF',
+    ];
+    if (!allowedStaffRoles.includes(staffRole)) {
+      setStaffErr(
+        'Ngoại lệ UC04: Thao tác phân quyền không được phép theo quy tắc hệ thống.'
+      );
+      return;
+    }
 
     if (editingStaff) {
+      if (editingStaff.role === 'ADMIN') {
+        setStaffErr(
+          'Ngoại lệ UC04: Không được phép hạ quyền tài khoản Quản trị viên gốc.'
+        );
+        return;
+      }
       updateStaffAccount(editingStaff.id, {
-        fullName: staffName.trim(),
+        fullName: cleanName,
         email: cleanEmail,
         password: staffPassword.trim() || '123',
-        phone: staffPhone.trim(),
+        phone: cleanPhone,
         role: staffRole,
-        branchId: branchVal,
+        branchId: staffBranchId,
       });
-      showToast(`Đã cập nhật nhân viên "${staffName.trim()}".`);
+      showToast(`UC04: Đã cập nhật thông tin & phân quyền nhân viên "${cleanName}".`);
     } else {
       addStaffAccount({
-        fullName: staffName.trim(),
+        fullName: cleanName,
         email: cleanEmail,
         password: staffPassword.trim() || '123',
-        phone: staffPhone.trim(),
+        phone: cleanPhone,
         role: staffRole,
-        branchId: branchVal,
+        branchId: staffBranchId,
         isActive: true,
       });
-      showToast(`Đã thêm nhân viên mới "${staffName.trim()}".`);
+      showToast(`UC04: Đã tạo tài khoản nhân viên mới "${cleanName}".`);
     }
     setIsStaffModalOpen(false);
   };
@@ -174,21 +232,26 @@ export function OrganizationPage() {
       {/* Unboxed Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
+          <div className="inline-flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 rounded bg-[#EFF6FF] border border-[#BFDBFE] text-[#1D4ED8] text-[11px] font-mono font-bold">
+              UC04 · Actor: Quản trị viên (Admin)
+            </span>
+          </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[#09090B]">
-            Nhân sự &amp; Phân quyền (RBAC)
+            Quản lý Tài khoản &amp; Phân quyền Nhân viên
           </h1>
           <p className="text-[13px] text-[#71717A] mt-0.5">
-            Quản lý tài khoản nhân viên, gán vai trò nghiệp vụ và phân công phạm vi chi nhánh
+            Chỉ Admin được tạo, cập nhật, vô hiệu hóa tài khoản nhân viên và phân quyền Quản lý chi nhánh, Nhân viên kho, Nhân viên bán hàng
           </p>
         </div>
 
         <button
           type="button"
           onClick={openCreateStaff}
-          className="h-[36px] px-4 rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[13px] font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0 w-fit"
+          className="h-[36px] px-4 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[13px] font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer shrink-0 w-fit"
         >
           <Plus className="w-4 h-4" />
-          <span>Thêm nhân viên</span>
+          <span>Thêm nhân viên mới</span>
         </button>
       </div>
 
@@ -222,20 +285,20 @@ export function OrganizationPage() {
 
         <div className="polaris-card p-4">
           <div className="flex items-center justify-between text-[12px] font-medium text-[#71717A]">
-            <span>Tài khoản bị khóa</span>
+            <span>Đã vô hiệu hóa</span>
             <span className="w-2 h-2 rounded-full bg-[#DC2626]" />
           </div>
           <p className="text-[22px] font-bold text-[#09090B] tabular-nums mt-1.5">
             {lockedStaffCount}
           </p>
           <p className="text-[11.5px] text-[#71717A] mt-0.5">
-            Đã thu hồi quyền đăng nhập
+            Chặn đăng nhập theo UC02/UC04
           </p>
         </div>
 
         <div className="polaris-card p-4">
           <div className="flex items-center justify-between text-[12px] font-medium text-[#71717A]">
-            <span>Chi nhánh vận hành</span>
+            <span>Chi nhánh phân quyền</span>
             <Building className="w-4 h-4 text-[#2563EB]" />
           </div>
           <p className="text-[22px] font-bold text-[#09090B] tabular-nums mt-1.5">
@@ -265,16 +328,16 @@ export function OrganizationPage() {
 
       {/* Unified Polaris Table Card */}
       <div className="polaris-card overflow-hidden">
-        {/* Integrated Filter Toolbar (Role Tabs + Search) */}
+        {/* Integrated Filter Toolbar */}
         <div className="px-4 py-3 border-b border-[#E4E4E7] bg-[#FAFAFA]/60 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-1">
             {(
               [
                 { id: 'ALL', label: 'Tất cả vai trò' },
-                { id: 'ADMIN', label: 'Admin' },
-                { id: 'BRANCH_MANAGER', label: 'Quản lý CN' },
-                { id: 'WAREHOUSE_STAFF', label: 'NV Kho' },
-                { id: 'SALES_STAFF', label: 'NV Bán hàng' },
+                { id: 'ADMIN', label: 'Quản trị viên' },
+                { id: 'BRANCH_MANAGER', label: 'Quản lý chi nhánh' },
+                { id: 'WAREHOUSE_STAFF', label: 'Nhân viên kho' },
+                { id: 'SALES_STAFF', label: 'Nhân viên bán hàng' },
               ] as const
             ).map((t) => (
               <button
@@ -283,7 +346,7 @@ export function OrganizationPage() {
                 onClick={() => setRoleFilter(t.id)}
                 className={`h-[30px] px-3 rounded-[7px] text-[12.5px] font-medium transition-all cursor-pointer ${
                   roleFilter === t.id
-                    ? 'bg-[#18181B] text-white font-semibold shadow-2xs'
+                    ? 'bg-[#2563EB] text-white font-semibold shadow-2xs'
                     : 'text-[#52525B] hover:text-[#09090B] hover:bg-[#F4F4F5]'
                 }`}
               >
@@ -292,7 +355,7 @@ export function OrganizationPage() {
             ))}
           </div>
 
-          <div className="h-[34px] w-full sm:w-[250px] rounded-[8px] border border-[#E4E4E7] bg-white focus-within:border-[#18181B] px-2.5 flex items-center gap-2">
+          <div className="h-[34px] w-full sm:w-[250px] rounded-[8px] border border-[#E4E4E7] bg-white focus-within:border-[#2563EB] px-2.5 flex items-center gap-2">
             <Search className="w-3.5 h-3.5 text-[#71717A] shrink-0" />
             <input
               type="text"
@@ -320,10 +383,10 @@ export function OrganizationPage() {
               <tr className="bg-[#FAFAFA] border-b border-[#E4E4E7] text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#71717A] h-[40px]">
                 <th className="px-5">Nhân viên</th>
                 <th className="px-4">Liên hệ</th>
-                <th className="px-4">Vai trò (Role)</th>
-                <th className="px-4">Phạm vi Chi nhánh</th>
+                <th className="px-4">Vai trò phân quyền</th>
+                <th className="px-4">Chi nhánh làm việc</th>
                 <th className="px-4 text-center">Trạng thái</th>
-                <th className="px-5 text-right">Thao tác</th>
+                <th className="px-5 text-right">Thao tác (Admin)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E4E7]/80 text-[13px]">
@@ -332,9 +395,6 @@ export function OrganizationPage() {
                   <td colSpan={6} className="px-5 py-12 text-center">
                     <p className="text-[13.5px] font-semibold text-[#18181B]">
                       Không tìm thấy nhân viên nào
-                    </p>
-                    <p className="text-[12.5px] text-[#71717A] mt-1">
-                      Thử bỏ bộ lọc vai trò hoặc thêm tài khoản nhân sự mới.
                     </p>
                   </td>
                 </tr>
@@ -402,37 +462,45 @@ export function OrganizationPage() {
                       ) : (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FEF2F2] border border-[#FECACA] text-[#B91C1C] text-[11.5px] font-semibold">
                           <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626]" />
-                          <span>Đã khóa</span>
+                          <span>Vô hiệu hóa</span>
                         </span>
                       )}
                     </td>
 
                     <td className="px-5 text-right">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openEditStaff(s)}
-                          className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
-                          <span>Sửa</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const res = toggleStaffStatus(s.id);
-                            if (!res.ok) {
-                              setBannerErr(res.error ?? 'Không thể khóa tài khoản.');
-                            } else {
-                              showToast(`Đã đổi trạng thái tài khoản "${s.fullName}".`);
-                            }
-                          }}
-                          className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#52525B] hover:text-[#09090B] inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                          <span>{s.isActive ? 'Khóa' : 'Mở'}</span>
-                        </button>
-                      </div>
+                      {s.role === 'ADMIN' ? (
+                        <span className="text-[11.5px] text-[#71717A] italic">
+                          Quản trị viên gốc
+                        </span>
+                      ) : (
+                        <div className="inline-flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditStaff(s)}
+                            className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
+                            <span>Phân quyền / Sửa</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const res = toggleStaffStatus(s.id);
+                              if (!res.ok) {
+                                setBannerErr(res.error ?? 'Không thể khóa tài khoản.');
+                              } else {
+                                showToast(
+                                  `UC04: Đã ${s.isActive ? 'vô hiệu hóa' : 'kích hoạt'} tài khoản "${s.fullName}".`
+                                );
+                              }
+                            }}
+                            className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#52525B] hover:text-[#09090B] inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                            <span>{s.isActive ? 'Vô hiệu hóa' : 'Mở khóa'}</span>
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -443,24 +511,26 @@ export function OrganizationPage() {
           <div className="px-5 py-3 bg-[#FAFAFA] border-t border-[#E4E4E7] flex items-center justify-between text-[12px] text-[#71717A]">
             <span>
               Hiển thị <strong className="text-[#18181B]">{filteredStaff.length}</strong> /{' '}
-              <strong className="text-[#18181B]">{staffAccounts.length}</strong> nhân sự
+              <strong className="text-[#18181B]">{staffAccounts.length}</strong> tài khoản
             </span>
-            <span>Kiểm soát truy cập theo vai trò (RBAC)</span>
+            <span>Đặc tả UC04: Phân quyền Quản lý chi nhánh, Nhân viên kho, Nhân viên bán hàng</span>
           </div>
         </div>
       </div>
 
-      {/* Modal Add / Edit Staff */}
+      {/* Modal Add / Edit Staff (UC04 Step 3) */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-[470px] rounded-[12px] border border-[#E4E4E7] shadow-xl overflow-hidden">
+          <div className="bg-white w-full max-w-[480px] rounded-[12px] border border-[#E4E4E7] shadow-xl overflow-hidden">
             <div className="px-5 py-4 bg-[#FAFAFA] border-b border-[#E4E4E7] flex items-center justify-between">
               <div>
                 <h3 className="text-[15px] font-bold text-[#09090B]">
-                  {editingStaff ? 'Chỉnh sửa hồ sơ Nhân viên' : 'Thêm Nhân viên mới'}
+                  {editingStaff
+                    ? 'Cập nhật & Phân quyền Nhân viên (UC04)'
+                    : 'Tạo tài khoản Nhân viên mới (UC04)'}
                 </h3>
                 <p className="text-[12px] text-[#71717A]">
-                  Cấp tài khoản đăng nhập và phân quyền chi nhánh làm việc
+                  Bước 3 UC04: Nhập thông tin, chi nhánh làm việc và vai trò nhân viên
                 </p>
               </div>
               <button
@@ -489,7 +559,7 @@ export function OrganizationPage() {
                   value={staffName}
                   onChange={(e) => setStaffName(e.target.value)}
                   placeholder="Nguyễn Văn B"
-                  className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
+                  className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#2563EB]"
                 />
               </div>
 
@@ -503,20 +573,20 @@ export function OrganizationPage() {
                     value={staffEmail}
                     onChange={(e) => setStaffEmail(e.target.value)}
                     placeholder="staff@retail.vn"
-                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#2563EB]"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
-                    Mật khẩu cấp
+                    Mật khẩu khởi tạo *
                   </label>
                   <input
                     type="text"
                     value={staffPassword}
                     onChange={(e) => setStaffPassword(e.target.value)}
                     placeholder="123"
-                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] font-mono outline-none focus:border-[#18181B]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] font-mono outline-none focus:border-[#2563EB]"
                   />
                 </div>
               </div>
@@ -530,21 +600,20 @@ export function OrganizationPage() {
                   value={staffPhone}
                   onChange={(e) => setStaffPhone(e.target.value)}
                   placeholder="0912345678"
-                  className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
+                  className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#2563EB]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
-                    Vai trò nghiệp vụ
+                    Vai trò phân quyền (UC04) *
                   </label>
                   <select
                     value={staffRole}
                     onChange={(e) => setStaffRole(e.target.value as UserRole)}
-                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] bg-white px-2.5 text-[13px] outline-none focus:border-[#18181B]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] bg-white px-2.5 text-[13px] outline-none focus:border-[#2563EB]"
                   >
-                    <option value="ADMIN">Quản trị viên (Admin)</option>
                     <option value="BRANCH_MANAGER">Quản lý chi nhánh</option>
                     <option value="WAREHOUSE_STAFF">Nhân viên kho</option>
                     <option value="SALES_STAFF">Nhân viên bán hàng</option>
@@ -553,13 +622,12 @@ export function OrganizationPage() {
 
                 <div>
                   <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
-                    Chi nhánh phân công
+                    Chi nhánh làm việc *
                   </label>
                   <select
                     value={staffBranchId}
-                    disabled={staffRole === 'ADMIN'}
                     onChange={(e) => setStaffBranchId(e.target.value)}
-                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] bg-white px-2.5 text-[13px] outline-none focus:border-[#18181B] disabled:bg-[#F4F4F5] disabled:text-[#71717A]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] bg-white px-2.5 text-[13px] outline-none focus:border-[#2563EB]"
                   >
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>
@@ -580,9 +648,9 @@ export function OrganizationPage() {
                 </button>
                 <button
                   type="submit"
-                  className="h-[36px] px-4 rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[12.5px] font-semibold cursor-pointer"
+                  className="h-[36px] px-4 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[12.5px] font-semibold cursor-pointer"
                 >
-                  {editingStaff ? 'Lưu thay đổi' : 'Thêm nhân viên'}
+                  {editingStaff ? 'Lưu phân quyền' : 'Tạo tài khoản nhân viên'}
                 </button>
               </div>
             </form>

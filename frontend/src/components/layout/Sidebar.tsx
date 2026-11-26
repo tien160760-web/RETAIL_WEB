@@ -4,11 +4,14 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
+  ShieldCheck,
   Store,
   Users,
   X,
 } from 'lucide-react';
 import { useAdminContext } from '../../context/AdminContext';
+import { ROLES } from '../../data/mockDashboardData';
+import { UserRole } from '../../types/dashboard';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -17,55 +20,92 @@ interface SidebarProps {
   onCloseMobile: () => void;
 }
 
+interface MenuItemDef {
+  id: string;
+  label: string;
+  ucBadge: string;
+  path: string;
+  icon: React.ComponentType<{ className?: string }>;
+  count: number;
+  allowedRoles: UserRole[];
+}
+
 export function Sidebar({
   collapsed,
   mobileOpen,
   onToggleCollapse,
   onCloseMobile,
 }: SidebarProps) {
-  const { products, suppliers, staffAccounts } = useAdminContext();
+  const { currentUser, products, suppliers, staffAccounts } = useAdminContext();
+  const currentRole: UserRole = currentUser?.role ?? 'SALES_STAFF';
+  const roleLabel =
+    ROLES.find((r) => r.id === currentRole)?.shortLabel ?? currentRole;
 
-  const navItems = [
+  const allNavItems: MenuItemDef[] = [
     {
       id: 'products',
-      label: 'Sản phẩm & Danh mục',
+      label: currentRole === 'ADMIN' ? 'Sản phẩm & Danh mục' : 'Tra cứu Sản phẩm',
+      ucBadge: currentRole === 'ADMIN' ? 'UC06' : 'UC05',
       path: '/products',
       icon: Package,
       count: products.length,
+      // Admin manages products (UC06); other roles can view/search products (UC05)
+      allowedRoles: ['ADMIN', 'BRANCH_MANAGER', 'WAREHOUSE_STAFF', 'SALES_STAFF'],
     },
     {
       id: 'suppliers',
       label: 'Nhà cung cấp',
+      ucBadge: 'UC07',
       path: '/suppliers',
       icon: Building2,
       count: suppliers.length,
+      // UC07 Actor: Quản lý chi nhánh (and Admin superuser)
+      allowedRoles: ['ADMIN', 'BRANCH_MANAGER'],
     },
     {
       id: 'staff',
-      label: 'Nhân sự & Phân quyền',
+      label: 'Quản lý Nhân viên',
+      ucBadge: 'UC04',
       path: '/staff',
       icon: Users,
       count: staffAccounts.length,
+      // UC04 Actor: ONLY Quản trị viên (Admin)
+      allowedRoles: ['ADMIN'],
     },
   ];
 
+  const visibleNavItems = allNavItems.filter((item) =>
+    item.allowedRoles.includes(currentRole)
+  );
+
   const renderNavItems = (isCompact: boolean, onSelect?: () => void) => (
-    <nav className="space-y-1 flex-1">
+    <nav className="space-y-1.5 flex-1">
       {!isCompact && (
-        <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#71717A]">
-          Quản trị dữ liệu
-        </p>
+        <div className="px-3 mb-2.5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#71717A]">
+            Chức năng theo quyền
+          </p>
+          <p className="text-[11px] text-[#2563EB] font-medium flex items-center gap-1 mt-0.5">
+            <ShieldCheck className="w-3 h-3 shrink-0" />
+            <span className="truncate">Actor: {roleLabel}</span>
+          </p>
+        </div>
       )}
-      {navItems.map((item) => {
+
+      {visibleNavItems.map((item) => {
         const Icon = item.icon;
         return (
           <NavLink
             key={item.id}
             to={item.path}
             onClick={onSelect}
-            title={isCompact ? `${item.label} (${item.count})` : undefined}
+            title={
+              isCompact
+                ? `${item.label} (${item.ucBadge} · ${item.count})`
+                : undefined
+            }
             className={({ isActive }) =>
-              `group relative w-full h-[38px] rounded-[8px] flex items-center justify-between text-[13px] transition-all ${
+              `group relative w-full h-[40px] rounded-[8px] flex items-center justify-between text-[13px] transition-all ${
                 isCompact ? 'justify-center px-0' : 'px-3'
               } ${
                 isActive
@@ -91,13 +131,13 @@ export function Sidebar({
                 </div>
                 {!isCompact && (
                   <span
-                    className={`ml-2 px-1.5 py-0.5 rounded-[5px] text-[11px] font-mono tabular-nums ${
+                    className={`ml-2 px-1.5 py-0.5 rounded-[5px] text-[10.5px] font-mono tabular-nums shrink-0 ${
                       isActive
-                        ? 'bg-white text-[#18181B] border border-[#E4E4E7] font-semibold'
-                        : 'text-[#71717A]'
+                        ? 'bg-white text-[#2563EB] border border-[#BFDBFE] font-bold'
+                        : 'bg-[#F4F4F5] text-[#71717A]'
                     }`}
                   >
-                    {item.count}
+                    {item.ucBadge}
                   </span>
                 )}
               </>
@@ -112,7 +152,7 @@ export function Sidebar({
     <>
       {/* Desktop Sidebar */}
       <aside
-        style={{ width: collapsed ? 64 : 236 }}
+        style={{ width: collapsed ? 64 : 244 }}
         className="hidden lg:flex shrink-0 h-full bg-white border-r border-[#E4E4E7] flex-col px-2.5 py-4 select-none transition-[width] duration-150 overflow-hidden"
       >
         {renderNavItems(collapsed)}
@@ -142,7 +182,7 @@ export function Sidebar({
             onClick={onCloseMobile}
             className="fixed inset-0 bg-black/40 backdrop-blur-[1px]"
           />
-          <aside className="relative z-10 w-[250px] max-w-[82vw] h-full bg-white border-r border-[#E4E4E7] flex flex-col px-3 py-4 shadow-xl">
+          <aside className="relative z-10 w-[256px] max-w-[82vw] h-full bg-white border-r border-[#E4E4E7] flex flex-col px-3 py-4 shadow-xl">
             <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-[#E4E4E7]">
               <div className="flex items-center gap-2">
                 <span className="w-7 h-7 rounded-[7px] bg-[#18181B] text-white flex items-center justify-center">

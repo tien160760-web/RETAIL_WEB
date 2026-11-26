@@ -92,6 +92,7 @@ function toSkuSlug(str: string) {
 
 export function CatalogPage() {
   const {
+    currentUser,
     categories,
     addCategory,
     updateCategory,
@@ -101,6 +102,9 @@ export function CatalogPage() {
     updateProduct,
     deleteProduct,
   } = useAdminContext();
+
+  // UC06 Actor: Quản trị viên (Admin). Các vai trò khác chỉ được Xem & Tìm kiếm sản phẩm (UC05)
+  const canManageCatalog = currentUser?.role === 'ADMIN';
 
   const [mainView, setMainView] = useState<'products' | 'categories'>('products');
   const [displayMode, setDisplayMode] = useState<'table' | 'grid'>('table');
@@ -636,33 +640,46 @@ export function CatalogPage() {
       {/* Top Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
+          <div className="inline-flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 rounded bg-[#EFF6FF] border border-[#BFDBFE] text-[#1D4ED8] text-[11px] font-mono font-bold">
+              {canManageCatalog
+                ? 'UC06 · Actor: Quản trị viên (Admin)'
+                : 'UC05 · Chế độ Xem & Tìm kiếm sản phẩm'}
+            </span>
+          </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[#09090B]">
-            Sản phẩm &amp; Phân loại Hàng hóa
+            {canManageCatalog
+              ? 'Quản lý Danh mục, Sản phẩm, Biến thể & Hình ảnh'
+              : 'Danh mục & Tra cứu Sản phẩm'}
           </h1>
           <p className="text-[13px] text-[#71717A] mt-0.5">
-            Đăng sản phẩm chuẩn Shopee: Album nhiều hình ảnh, tự động tạo bảng phân loại nhiều Màu sắc × nhiều Kích cỡ (Size)
+            {canManageCatalog
+              ? 'Đăng sản phẩm chuẩn Shopee: Album nhiều hình ảnh, tự động tạo bảng phân loại nhiều Màu sắc × nhiều Kích cỡ (Size)'
+              : 'Theo đặc tả UC06, chỉ Quản trị viên (Admin) có quyền thêm, sửa, xóa danh mục và sản phẩm'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={openCreateCatModal}
-            className="h-[36px] px-3.5 rounded-[8px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#18181B] text-[13px] font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-          >
-            <FolderPlus className="w-4 h-4 text-[#2563EB]" />
-            <span>Thêm danh mục</span>
-          </button>
+        {canManageCatalog && (
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={openCreateCatModal}
+              className="h-[36px] px-3.5 rounded-[8px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#18181B] text-[13px] font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            >
+              <FolderPlus className="w-4 h-4 text-[#2563EB]" />
+              <span>Thêm danh mục</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={openCreateModal}
-            className="h-[36px] px-4 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[13px] font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Thêm sản phẩm mới</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={openCreateModal}
+              className="h-[36px] px-4 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[13px] font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Thêm sản phẩm mới</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Mini Stats Bar */}
@@ -1044,24 +1061,30 @@ export function CatalogPage() {
 
                             {/* Actions */}
                             <td className="px-5 text-right">
-                              <div className="inline-flex items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => openEditModal(product)}
-                                  className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 transition-colors cursor-pointer"
-                                >
-                                  <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
-                                  <span>Sửa</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmDeleteProduct(product)}
-                                  className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:border-[#FCA5A5] text-[12px] font-medium text-[#52525B] hover:text-[#DC2626] inline-flex items-center gap-1 transition-colors cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                  <span>Xóa</span>
-                                </button>
-                              </div>
+                              {canManageCatalog ? (
+                                <div className="inline-flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditModal(product)}
+                                    className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
+                                    <span>Sửa</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmDeleteProduct(product)}
+                                    className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:border-[#FCA5A5] text-[12px] font-medium text-[#52525B] hover:text-[#DC2626] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Xóa</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[11.5px] text-[#71717A] italic">
+                                  Chỉ xem (UC05)
+                                </span>
+                              )}
                             </td>
                           </tr>
 
@@ -1234,22 +1257,28 @@ export function CatalogPage() {
                       <span className="text-[14px] font-bold text-[#09090B] tabular-nums">
                         {formatVND(minPrice)}
                       </span>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(product)}
-                          className="h-[28px] px-2.5 rounded-[6px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[11.5px] font-medium text-[#18181B] cursor-pointer"
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDeleteProduct(product)}
-                          className="h-[28px] px-2 rounded-[6px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:text-[#DC2626] text-[11.5px] text-[#71717A] cursor-pointer"
-                        >
-                          Xóa
-                        </button>
-                      </div>
+                      {canManageCatalog ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(product)}
+                            className="h-[28px] px-2.5 rounded-[6px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[11.5px] font-medium text-[#18181B] cursor-pointer"
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteProduct(product)}
+                            className="h-[28px] px-2 rounded-[6px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:text-[#DC2626] text-[11.5px] text-[#71717A] cursor-pointer"
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-[#71717A] italic">
+                          Chỉ xem (UC05)
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -1293,24 +1322,30 @@ export function CatalogPage() {
                         </span>
                       </td>
                       <td className="px-5 text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => openEditCatModal(cat)}
-                            className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
-                            <span>Sửa</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(cat)}
-                            className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:border-[#FCA5A5] text-[12px] font-medium text-[#52525B] hover:text-[#DC2626] inline-flex items-center gap-1 cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Xóa</span>
-                          </button>
-                        </div>
+                        {canManageCatalog ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditCatModal(cat)}
+                              className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
+                              <span>Sửa</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategory(cat)}
+                              className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:border-[#FCA5A5] text-[12px] font-medium text-[#52525B] hover:text-[#DC2626] inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Xóa</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11.5px] text-[#71717A] italic">
+                            Chỉ xem
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
