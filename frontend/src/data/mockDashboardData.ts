@@ -270,6 +270,7 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     categoryId: 'ao-thun',
     basePrice: 450_000,
     description: 'Chất liệu cotton Pima mềm mịn, thoáng khí, giữ form tốt sau nhiều lần giặt.',
+    imageUrl: 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80',
     colorHex: '#1E293B',
     isActive: true,
     variants: [
@@ -284,6 +285,7 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     categoryId: 'quan-denim',
     basePrice: 650_000,
     description: 'Denim co giãn 2% spandex, form slimfit trẻ trung phù hợp đi làm và đi chơi.',
+    imageUrl: 'https://images.unsplash.com/photo-1542272604-787c3835535d?auto=format&fit=crop&w=600&q=80',
     colorHex: '#1D4ED8',
     isActive: true,
     variants: [
@@ -298,6 +300,7 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     categoryId: 'ao-khoac',
     basePrice: 800_000,
     description: 'Vải dù trượt nước kết hợp lớp lót lưới thoáng khí, có mũ tháo rời.',
+    imageUrl: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?auto=format&fit=crop&w=600&q=80',
     colorHex: '#0F766E',
     isActive: true,
     variants: [
@@ -311,6 +314,7 @@ export const INITIAL_CATALOG_PRODUCTS: CatalogProduct[] = [
     categoryId: 'phu-kien',
     basePrice: 490_000,
     description: 'Vải canvas dày dặn chống thấm nhẹ, ngăn đựng phụ kiện tiện lợi.',
+    imageUrl: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80',
     colorHex: '#B45309',
     isActive: true,
     variants: [
