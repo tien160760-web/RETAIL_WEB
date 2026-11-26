@@ -20,7 +20,7 @@ export function AdminLayout({ pageTitle, children }: AdminLayoutProps) {
   };
 
   return (
-    <div className="w-full h-screen flex flex-col overflow-hidden bg-[#F8FAFC]">
+    <div className="w-full h-screen flex flex-col overflow-hidden bg-[#FAFAFA] text-[#09090B]">
       <Topbar
         pageTitle={pageTitle}
         isSidebarCollapsed={desktopCollapsed}
@@ -35,8 +35,8 @@ export function AdminLayout({ pageTitle, children }: AdminLayoutProps) {
           onToggleCollapse={() => setDesktopCollapsed((prev) => !prev)}
           onCloseMobile={() => setMobileDrawerOpen(false)}
         />
-        <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden admin-scroll p-3 sm:p-4">
-          <div className="w-full max-w-[1360px] mx-auto">{children}</div>
+        <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden admin-scroll px-4 sm:px-6 lg:px-8 py-6">
+          <div className="w-full max-w-[1240px] mx-auto">{children}</div>
         </main>
       </div>
     </div>

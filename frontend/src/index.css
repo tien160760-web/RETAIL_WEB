@@ -10,9 +10,10 @@
   html,
   body {
     font-family: var(--font-sans);
-    background-color: #f8fafc;
-    color: #0f172a;
-    caret-color: #2563eb;
+    background-color: #fafafa;
+    color: #09090b;
+    caret-color: #18181b;
+    -webkit-font-smoothing: antialiased;
   }
 
   h1,
@@ -26,60 +27,54 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Simple clean demo surface */
+/* Unified Polaris / shadcn surface card */
+.polaris-card {
+  background-color: #ffffff;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  box-shadow: 0 1px 2px 0 rgba(9, 9, 11, 0.03);
+}
+
+/* Legacy utility aliases kept for compatibility */
 .glass-canvas {
-  background-color: #f8fafc;
+  background-color: #fafafa;
 }
 
-/* Simple solid white card for clean demo */
 .glass-card {
-  position: relative;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  background-color: #ffffff;
+  border: 1px solid #e4e4e7;
+  box-shadow: 0 1px 2px 0 rgba(9, 9, 11, 0.03);
 }
 
-.glass-card-subtle:hover {
-  border-color: #cbd5e1;
-}
-
-.spotlight-card {
-  overflow: hidden;
-}
-
-/* Clean dropdown / popover */
 .glass-popover {
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  border: 1px solid #e4e4e7;
   box-shadow:
-    0 10px 25px -5px rgba(15, 23, 42, 0.1),
-    0 4px 10px -2px rgba(15, 23, 42, 0.05);
+    0 10px 25px -5px rgba(9, 9, 11, 0.08),
+    0 4px 10px -2px rgba(9, 9, 11, 0.04);
 }
 
-/* Primary Blue Button */
 .btn-blue-glow {
-  background-color: #2563eb;
+  background-color: #18181b;
   color: #ffffff;
-  border: 1px solid #1d4ed8;
+  border: 1px solid #18181b;
   transition: background-color 150ms ease;
 }
 
 .btn-blue-glow:hover:not(:disabled) {
-  background-color: #1d4ed8;
+  background-color: #27272a;
 }
 
-/* Secondary White Button */
 .btn-glass {
   background-color: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #1e293b;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  border: 1px solid #e4e4e7;
+  color: #18181b;
+  transition: background-color 150ms ease, border-color 150ms ease;
 }
 
 .btn-glass:hover:not(:disabled) {
-  background-color: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background-color: #f4f4f5;
+  border-color: #d4d4d8;
 }
 
 /* Thin scrollbar */
@@ -93,10 +88,10 @@
 }
 
 .admin-scroll::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: #d4d4d8;
   border-radius: 9999px;
 }
 
 .admin-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: #a1a1aa;
 }

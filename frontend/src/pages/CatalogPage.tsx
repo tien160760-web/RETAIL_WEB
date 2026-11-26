@@ -4,15 +4,39 @@ import {
   CheckCircle2,
   Edit3,
   FolderPlus,
+  Layers,
   Package,
   Plus,
   Search,
+  Tag,
   Trash2,
   X,
 } from 'lucide-react';
 import { useAdminContext } from '../context/AdminContext';
 import { CatalogCategory, CatalogProduct } from '../types/dashboard';
 import { formatVND } from '../utils/format';
+
+const AVATAR_PALETTES = [
+  'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]',
+  'bg-[#F0FDF4] text-[#15803D] border-[#BBF7D0]',
+  'bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]',
+  'bg-[#F3E8FF] text-[#6D28D9] border-[#DDD6FE]',
+  'bg-[#FFE4E6] text-[#BE123C] border-[#FECDD3]',
+  'bg-[#E0F2FE] text-[#0369A1] border-[#BAE6FD]',
+];
+
+function getBadgeStyle(seed: string) {
+  let sum = 0;
+  for (let i = 0; i < seed.length; i++) sum += seed.charCodeAt(i);
+  return AVATAR_PALETTES[sum % AVATAR_PALETTES.length];
+}
+
+function getProductInitials(name: string) {
+  const words = name.trim().split(/\s+/);
+  if (words.length === 0) return 'SP';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
 
 export function CatalogPage() {
   const {
@@ -26,11 +50,16 @@ export function CatalogPage() {
     deleteProduct,
   } = useAdminContext();
 
-  const [activeTab, setActiveTab] = useState<'products' | 'categories'>('products');
+  const [mainView, setMainView] = useState<'products' | 'categories'>('products');
+  const [statusTab, setStatusTab] = useState<'all' | 'active' | 'hidden'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategoryId, setFilterCategoryId] = useState<string>('all');
+
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [bannerErr, setBannerErr] = useState<string | null>(null);
+
+  // Confirm delete dialog state
+  const [confirmDeleteProduct, setConfirmDeleteProduct] = useState<CatalogProduct | null>(null);
 
   // Modal state for Add / Edit Product
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -64,19 +93,33 @@ export function CatalogPage() {
     }, 2800);
   };
 
+  // Summary metrics
+  const activeCount = useMemo(
+    () => products.filter((p) => p.isActive).length,
+    [products]
+  );
+  const hiddenCount = products.length - activeCount;
+  const totalVariantsCount = useMemo(
+    () => products.reduce((acc, p) => acc + p.variants.length, 0),
+    [products]
+  );
+
   const filteredProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return products.filter((p) => {
+      if (statusTab === 'active' && !p.isActive) return false;
+      if (statusTab === 'hidden' && p.isActive) return false;
       if (filterCategoryId !== 'all' && p.categoryId !== filterCategoryId) {
         return false;
       }
       if (!q) return true;
       return (
         p.name.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
         p.variants.some((v) => v.sku.toLowerCase().includes(q))
       );
     });
-  }, [products, searchQuery, filterCategoryId]);
+  }, [products, searchQuery, filterCategoryId, statusTab]);
 
   const openCreateModal = () => {
     setEditingProduct(null);
@@ -128,7 +171,7 @@ export function CatalogPage() {
     }
     const created = addCategory({
       name: clean,
-      description: `Danh mục ${clean}`,
+      description: `Danh mục ngành hàng ${clean}`,
     });
     setCategoryId(created.id);
     setIsAddingInlineCat(false);
@@ -151,7 +194,7 @@ export function CatalogPage() {
       } else {
         const created = addCategory({
           name: cleanCat,
-          description: `Danh mục ${cleanCat}`,
+          description: `Danh mục ngành hàng ${cleanCat}`,
         });
         finalCategoryId = created.id;
       }
@@ -185,7 +228,7 @@ export function CatalogPage() {
       name: cleanName,
       categoryId: finalCategoryId,
       basePrice: numPrice,
-      description: description.trim() || 'Sản phẩm bán lẻ',
+      description: description.trim() || 'Sản phẩm chính hãng phân phối tại hệ thống',
       isActive: status === 'active',
       colorHex: '#2563EB',
       imageUrl: '',
@@ -250,13 +293,13 @@ export function CatalogPage() {
     if (editingCat) {
       updateCategory(editingCat.id, {
         name: clean,
-        description: catDesc.trim() || `Danh mục ${clean}`,
+        description: catDesc.trim() || `Nhóm sản phẩm ${clean}`,
       });
       showToast(`Đã cập nhật danh mục "${clean}".`);
     } else {
       addCategory({
         name: clean,
-        description: catDesc.trim() || `Danh mục ${clean}`,
+        description: catDesc.trim() || `Nhóm sản phẩm ${clean}`,
       });
       showToast(`Đã thêm danh mục mới "${clean}".`);
     }
@@ -278,55 +321,40 @@ export function CatalogPage() {
     categories.find((c) => c.id === catId)?.name ?? 'Chưa phân loại';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed bottom-4 right-4 z-50 bg-[#0F172A] text-white px-4 py-2.5 rounded-[8px] shadow-md flex items-center gap-2 text-[12.5px]">
-          <CheckCircle2 className="w-4 h-4 text-[#4ADE80]" />
+        <div className="fixed bottom-5 right-5 z-50 bg-[#18181B] text-white px-4 py-2.5 rounded-[10px] shadow-lg border border-white/10 flex items-center gap-2.5 text-[13px] font-medium">
+          <CheckCircle2 className="w-4 h-4 text-[#4ADE80] shrink-0" />
           <span>{toastMsg}</span>
         </div>
       )}
 
-      {bannerErr && (
-        <div className="p-3 rounded-[8px] bg-[#FEF2F2] border border-[#FCA5A5] flex items-center justify-between text-[12.5px] text-[#991B1B]">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
-            <span>{bannerErr}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setBannerErr(null)}
-            className="text-[11px] font-bold underline cursor-pointer"
-          >
-            Đóng
-          </button>
-        </div>
-      )}
-
-      {/* Header + Action Buttons */}
-      <div className="bg-white rounded-[10px] border border-[#E2E8F0] p-4 flex flex-wrap items-center justify-between gap-3">
+      {/* Top Unboxed Page Header (shadcn / Polaris style) */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-[17px] font-bold text-[#0F172A]">
-            Quản lý Sản phẩm &amp; Danh mục
-          </h2>
-          <p className="text-[12.5px] text-[#64748B]">
-            Hỗ trợ mọi ngành hàng (Điện tử, Gia dụng, Thực phẩm, Mỹ phẩm, Thời trang...) — tự do tạo thêm danh mục mới
+          <h1 className="text-[22px] font-bold tracking-tight text-[#09090B]">
+            Sản phẩm &amp; Danh mục
+          </h1>
+          <p className="text-[13px] text-[#71717A] mt-0.5">
+            Quản lý danh mục đa ngành hàng, thông tin biến thể SKU và trạng thái kinh doanh
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={openCreateCatModal}
-            className="h-[36px] px-3 rounded-[8px] border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[#0F172A] text-[12.5px] font-semibold flex items-center gap-1.5 cursor-pointer"
+            className="h-[36px] px-3.5 rounded-[8px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#18181B] text-[13px] font-medium flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
           >
-            <FolderPlus className="w-4 h-4 text-[#2563EB]" />
-            <span>+ Thêm danh mục</span>
+            <FolderPlus className="w-4 h-4 text-[#52525B]" />
+            <span>Thêm danh mục</span>
           </button>
 
           <button
             type="button"
             onClick={openCreateModal}
-            className="h-[36px] px-3.5 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[12.5px] font-semibold flex items-center gap-1.5 cursor-pointer"
+            className="h-[36px] px-4 rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[13px] font-semibold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Thêm sản phẩm</span>
@@ -334,137 +362,360 @@ export function CatalogPage() {
         </div>
       </div>
 
-      {/* Tabs: Sản phẩm / Danh mục */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex p-1 rounded-[8px] bg-white border border-[#E2E8F0]">
-          <button
-            type="button"
-            onClick={() => setActiveTab('products')}
-            className={`h-[32px] px-3.5 rounded-[6px] text-[12.5px] font-semibold cursor-pointer ${
-              activeTab === 'products'
-                ? 'bg-[#2563EB] text-white'
-                : 'text-[#475569] hover:text-[#0F172A]'
-            }`}
-          >
-            Danh sách Sản phẩm ({products.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('categories')}
-            className={`h-[32px] px-3.5 rounded-[6px] text-[12.5px] font-semibold cursor-pointer ${
-              activeTab === 'categories'
-                ? 'bg-[#2563EB] text-white'
-                : 'text-[#475569] hover:text-[#0F172A]'
-            }`}
-          >
-            Danh mục ngành hàng ({categories.length})
-          </button>
+      {/* Mini Stats Bar (Tremor / Polaris metric strip) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="polaris-card p-4">
+          <div className="flex items-center justify-between text-[12px] font-medium text-[#71717A]">
+            <span>Tổng sản phẩm</span>
+            <Package className="w-4 h-4 text-[#71717A]" />
+          </div>
+          <p className="text-[22px] font-bold text-[#09090B] tabular-nums mt-1.5">
+            {products.length}
+          </p>
+          <p className="text-[11.5px] text-[#71717A] mt-0.5">
+            {totalVariantsCount} mã SKU đang quản lý
+          </p>
         </div>
 
-        {activeTab === 'products' && (
-          <div className="flex flex-wrap items-center gap-2 flex-1 max-w-[520px] justify-end">
-            <select
-              value={filterCategoryId}
-              onChange={(e) => setFilterCategoryId(e.target.value)}
-              className="h-[36px] rounded-[8px] border border-[#E2E8F0] bg-white px-3 text-[12.5px] text-[#0F172A] outline-none focus:border-[#2563EB]"
-            >
-              <option value="all">Tất cả danh mục ({categories.length})</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-
-            <div className="bg-white rounded-[8px] border border-[#E2E8F0] px-3 h-[36px] flex items-center gap-2 flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 text-[#64748B] shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm tên sản phẩm, SKU..."
-                className="w-full text-[12.5px] text-[#0F172A] outline-none"
-              />
-            </div>
+        <div className="polaris-card p-4">
+          <div className="flex items-center justify-between text-[12px] font-medium text-[#71717A]">
+            <span>Đang kinh doanh</span>
+            <span className="w-2 h-2 rounded-full bg-[#16A34A]" />
           </div>
-        )}
+          <p className="text-[22px] font-bold text-[#09090B] tabular-nums mt-1.5">
+            {activeCount}
+          </p>
+          <p className="text-[11.5px] text-[#15803D] font-medium mt-0.5">
+            Hiển thị trên kệ hàng
+          </p>
+        </div>
+
+        <div className="polaris-card p-4">
+          <div className="flex items-center justify-between text-[12px] font-medium text-[#71717A]">
+            <span>Đang tạm ẩn</span>
+            <span className="w-2 h-2 rounded-full bg-[#A1A1AA]" />
+          </div>
+          <p className="text-[22px] font-bold text-[#09090B] tabular-nums mt-1.5">
+            {hiddenCount}
+          </p>
+          <p className="text-[11.5px] text-[#71717A] mt-0.5">
+            Ngừng hiển thị tạm thời
+          </p>
+        </div>
+
+        <div className="polaris-card p-4">
+          <div className="flex items-center justify-between text-[12px] font-medium text-[#71717A]">
+            <span>Danh mục ngành hàng</span>
+            <Layers className="w-4 h-4 text-[#2563EB]" />
+          </div>
+          <p className="text-[22px] font-bold text-[#09090B] tabular-nums mt-1.5">
+            {categories.length}
+          </p>
+          <p className="text-[11.5px] text-[#2563EB] font-medium mt-0.5">
+            Hỗ trợ đa ngành hàng
+          </p>
+        </div>
       </div>
 
-      {/* Tab 1: Product Table */}
-      {activeTab === 'products' ? (
-        <div className="bg-white rounded-[10px] border border-[#E2E8F0] overflow-x-auto">
-          <table className="w-full border-collapse text-left min-w-[680px]">
-            <thead>
-              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[11.5px] font-bold text-[#475569] h-[40px]">
-                <th className="px-4">Mã SKU</th>
-                <th className="px-4">Tên sản phẩm</th>
-                <th className="px-4">Danh mục</th>
-                <th className="px-4">Phân loại / Quy cách</th>
-                <th className="px-4 text-right">Giá bán</th>
-                <th className="px-4 text-center">Trạng thái</th>
-                <th className="px-4 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0] text-[13px]">
-              {filteredProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-[#64748B]">
-                    Chưa có sản phẩm nào phù hợp.
-                  </td>
+      {bannerErr && (
+        <div className="p-3.5 rounded-[10px] bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-between text-[13px] text-[#991B1B]">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
+            <span>{bannerErr}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBannerErr(null)}
+            className="text-[12px] font-semibold hover:underline cursor-pointer"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
+
+      {/* Unified Polaris IndexTable Card */}
+      <div className="polaris-card overflow-hidden">
+        {/* Card Header: Top View Switcher + Integrated Filters */}
+        <div className="px-4 py-3 border-b border-[#E4E4E7] bg-[#FAFAFA]/60 flex flex-wrap items-center justify-between gap-3">
+          {/* Left Tabs */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setMainView('products')}
+              className={`h-[32px] px-3 rounded-[7px] text-[12.5px] font-semibold transition-all cursor-pointer ${
+                mainView === 'products'
+                  ? 'bg-[#18181B] text-white shadow-2xs'
+                  : 'text-[#52525B] hover:text-[#09090B] hover:bg-[#F4F4F5]'
+              }`}
+            >
+              Sản phẩm ({products.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainView('categories')}
+              className={`h-[32px] px-3 rounded-[7px] text-[12.5px] font-semibold transition-all cursor-pointer ${
+                mainView === 'categories'
+                  ? 'bg-[#18181B] text-white shadow-2xs'
+                  : 'text-[#52525B] hover:text-[#09090B] hover:bg-[#F4F4F5]'
+              }`}
+            >
+              Danh mục ngành hàng ({categories.length})
+            </button>
+
+            {mainView === 'products' && (
+              <div className="hidden md:flex items-center gap-1 ml-2 pl-2 border-l border-[#E4E4E7]">
+                {(
+                  [
+                    { id: 'all', label: 'Tất cả' },
+                    { id: 'active', label: 'Đang bán' },
+                    { id: 'hidden', label: 'Tạm ẩn' },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setStatusTab(t.id)}
+                    className={`h-[28px] px-2.5 rounded-[6px] text-[12px] font-medium transition-colors cursor-pointer ${
+                      statusTab === t.id
+                        ? 'bg-[#E4E4E7]/80 text-[#09090B] font-semibold'
+                        : 'text-[#71717A] hover:text-[#09090B]'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right Integrated Search & Category Filter */}
+          {mainView === 'products' && (
+            <div className="flex flex-wrap items-center gap-2 flex-1 sm:flex-initial justify-end">
+              <select
+                value={filterCategoryId}
+                onChange={(e) => setFilterCategoryId(e.target.value)}
+                className="h-[34px] rounded-[8px] border border-[#E4E4E7] bg-white px-2.5 text-[12.5px] text-[#18181B] outline-none focus:border-[#18181B]"
+              >
+                <option value="all">Tất cả danh mục</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="h-[34px] w-full sm:w-[240px] rounded-[8px] border border-[#E4E4E7] bg-white focus-within:border-[#18181B] px-2.5 flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-[#71717A] shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm tên SP, mã SKU..."
+                  className="w-full bg-transparent text-[12.5px] text-[#09090B] placeholder:text-[#A1A1AA] outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="text-[11px] text-[#71717A] hover:text-[#09090B] cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Table Content */}
+        {mainView === 'products' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left min-w-[740px]">
+              <thead>
+                <tr className="bg-[#FAFAFA] border-b border-[#E4E4E7] text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#71717A] h-[40px]">
+                  <th className="px-5">Sản phẩm</th>
+                  <th className="px-4">Mã định danh SKU</th>
+                  <th className="px-4">Danh mục</th>
+                  <th className="px-4">Phân loại / Quy cách</th>
+                  <th className="px-4 text-right">Giá niêm yết</th>
+                  <th className="px-4 text-center">Trạng thái</th>
+                  <th className="px-5 text-right">Thao tác</th>
                 </tr>
-              ) : (
-                filteredProducts.map((product) => {
-                  const firstVar = product.variants[0];
+              </thead>
+              <tbody className="divide-y divide-[#E4E4E7]/80 text-[13px]">
+                {filteredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-5 py-12 text-center">
+                      <p className="text-[13.5px] font-semibold text-[#18181B]">
+                        Không tìm thấy sản phẩm nào
+                      </p>
+                      <p className="text-[12.5px] text-[#71717A] mt-1">
+                        Thử thay đổi từ khóa tìm kiếm hoặc bấm &ldquo;Thêm sản phẩm&rdquo; để tạo mới.
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredProducts.map((product) => {
+                    const firstVar = product.variants[0];
+                    const avatarStyle = getBadgeStyle(product.id + product.name);
+                    return (
+                      <tr
+                        key={product.id}
+                        className="group hover:bg-[#FAFAFA] transition-colors h-[64px]"
+                      >
+                        {/* 2-line Product Identity Cell */}
+                        <td className="px-5 py-2.5">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-[8px] border flex items-center justify-center text-[12px] font-bold shrink-0 ${avatarStyle}`}
+                            >
+                              {getProductInitials(product.name)}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-[#09090B] truncate leading-snug">
+                                {product.name}
+                              </p>
+                              <p className="text-[12px] text-[#71717A] truncate max-w-[260px]">
+                                {product.description}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Monospace KBD SKU Badge */}
+                        <td className="px-4">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-[6px] bg-[#F4F4F5] border border-[#E4E4E7] font-mono text-[12px] font-semibold text-[#18181B]">
+                            {firstVar?.sku ?? 'N/A'}
+                          </span>
+                        </td>
+
+                        {/* Category Tag */}
+                        <td className="px-4">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F4F4F5] text-[#3F3F46] text-[12px] font-medium">
+                            <Tag className="w-3 h-3 text-[#71717A]" />
+                            <span>{getCategoryName(product.categoryId)}</span>
+                          </span>
+                        </td>
+
+                        {/* Variant spec */}
+                        <td className="px-4 text-[#52525B]">
+                          <span className="font-medium text-[#18181B]">
+                            {firstVar ? `${firstVar.color} · ${firstVar.size}` : 'Tiêu chuẩn'}
+                          </span>
+                          {product.variants.length > 1 && (
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-[#EFF6FF] text-[#1D4ED8] text-[11px] font-semibold">
+                              +{product.variants.length - 1}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Tabular Price */}
+                        <td className="px-4 text-right font-semibold text-[#09090B] tabular-nums">
+                          {formatVND(firstVar?.price ?? product.basePrice)}
+                        </td>
+
+                        {/* Polaris Status Pill with Dot */}
+                        <td className="px-4 text-center">
+                          {product.isActive ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F0FDF4] border border-[#BBF7D0] text-[#15803D] text-[11.5px] font-semibold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
+                              <span>Đang bán</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[#52525B] text-[11.5px] font-semibold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#71717A]" />
+                              <span>Tạm ẩn</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-5 text-right">
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(product)}
+                              className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
+                              <span>Sửa</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteProduct(product)}
+                              className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:border-[#FCA5A5] text-[12px] font-medium text-[#52525B] hover:text-[#DC2626] inline-flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Xóa</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            {/* Table Footer */}
+            <div className="px-5 py-3 bg-[#FAFAFA] border-t border-[#E4E4E7] flex items-center justify-between text-[12px] text-[#71717A]">
+              <span>
+                Hiển thị <strong className="text-[#18181B]">{filteredProducts.length}</strong> /{' '}
+                <strong className="text-[#18181B]">{products.length}</strong> sản phẩm
+              </span>
+              <span>Đơn vị tiền tệ: VNĐ</span>
+            </div>
+          </div>
+        ) : (
+          /* Categories View inside Unified Card */
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left min-w-[600px]">
+              <thead>
+                <tr className="bg-[#FAFAFA] border-b border-[#E4E4E7] text-[11.5px] font-semibold uppercase tracking-[0.04em] text-[#71717A] h-[40px]">
+                  <th className="px-5">Tên danh mục ngành hàng</th>
+                  <th className="px-4">Mô tả chi tiết</th>
+                  <th className="px-4 text-center">Số lượng SP</th>
+                  <th className="px-5 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E4E4E7]/80 text-[13px]">
+                {categories.map((cat) => {
+                  const count = products.filter((p) => p.categoryId === cat.id).length;
+                  const badgeStyle = getBadgeStyle(cat.id);
                   return (
-                    <tr key={product.id} className="hover:bg-[#F8FAFC] h-[52px]">
-                      <td className="px-4 font-mono text-[12px] font-semibold text-[#2563EB]">
-                        {firstVar?.sku ?? 'N/A'}
-                      </td>
-                      <td className="px-4 font-semibold text-[#0F172A]">
-                        <div className="flex items-center gap-2">
-                          <Package className="w-4 h-4 text-[#64748B] shrink-0" />
-                          <span>{product.name}</span>
+                    <tr key={cat.id} className="hover:bg-[#FAFAFA] transition-colors h-[58px]">
+                      <td className="px-5">
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`w-8 h-8 rounded-[7px] border flex items-center justify-center text-[11.5px] font-bold shrink-0 ${badgeStyle}`}
+                          >
+                            {getProductInitials(cat.name)}
+                          </span>
+                          <span className="font-semibold text-[#09090B]">
+                            {cat.name}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-4">
-                        <span className="inline-block px-2 py-0.5 rounded bg-[#EFF6FF] text-[#1D4ED8] text-[11.5px] font-medium">
-                          {getCategoryName(product.categoryId)}
-                        </span>
-                      </td>
-                      <td className="px-4 text-[#475569]">
-                        {firstVar ? `${firstVar.color} / ${firstVar.size}` : 'Mặc định'}
-                      </td>
-                      <td className="px-4 text-right font-bold text-[#0F172A] tabular-nums">
-                        {formatVND(firstVar?.price ?? product.basePrice)}
-                      </td>
+                      <td className="px-4 text-[#52525B]">{cat.description}</td>
                       <td className="px-4 text-center">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                            product.isActive
-                              ? 'bg-[#DCFCE7] text-[#15803D]'
-                              : 'bg-[#F1F5F9] text-[#64748B]'
-                          }`}
-                        >
-                          {product.isActive ? 'Đang bán' : 'Đang ẩn'}
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[#18181B] text-[12px] font-semibold tabular-nums">
+                          {count} sản phẩm
                         </span>
                       </td>
-                      <td className="px-4 text-right">
+                      <td className="px-5 text-right">
                         <div className="inline-flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => openEditModal(product)}
-                            className="h-[28px] px-2.5 rounded-[6px] border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[12px] font-medium text-[#334155] inline-flex items-center gap-1 cursor-pointer"
+                            onClick={() => openEditCatModal(cat)}
+                            className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 cursor-pointer"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
                             <span>Sửa</span>
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              deleteProduct(product.id);
-                              showToast(`Đã xóa sản phẩm "${product.name}".`);
-                            }}
-                            className="h-[28px] px-2.5 rounded-[6px] border border-[#FCA5A5] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[12px] font-medium text-[#DC2626] inline-flex items-center gap-1 cursor-pointer"
+                            onClick={() => handleDeleteCategory(cat)}
+                            className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:border-[#FCA5A5] text-[12px] font-medium text-[#52525B] hover:text-[#DC2626] inline-flex items-center gap-1 cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                             <span>Xóa</span>
@@ -473,113 +724,102 @@ export function CatalogPage() {
                       </td>
                     </tr>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        /* Tab 2: Categories Management Table */
-        <div className="bg-white rounded-[10px] border border-[#E2E8F0] overflow-x-auto">
-          <table className="w-full border-collapse text-left min-w-[560px]">
-            <thead>
-              <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0] text-[11.5px] font-bold text-[#475569] h-[40px]">
-                <th className="px-4">Tên danh mục</th>
-                <th className="px-4">Mô tả ngành hàng</th>
-                <th className="px-4 text-center">Số sản phẩm</th>
-                <th className="px-4 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0] text-[13px]">
-              {categories.map((cat) => {
-                const count = products.filter((p) => p.categoryId === cat.id).length;
-                return (
-                  <tr key={cat.id} className="hover:bg-[#F8FAFC] h-[52px]">
-                    <td className="px-4 font-semibold text-[#0F172A]">
-                      {cat.name}
-                    </td>
-                    <td className="px-4 text-[#475569]">{cat.description}</td>
-                    <td className="px-4 text-center">
-                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#EFF6FF] text-[#1D4ED8] text-[11.5px] font-bold">
-                        {count} SP
-                      </span>
-                    </td>
-                    <td className="px-4 text-right">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openEditCatModal(cat)}
-                          className="h-[28px] px-2.5 rounded-[6px] border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] text-[12px] font-medium text-[#334155] inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>Sửa</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteCategory(cat)}
-                          className="h-[28px] px-2.5 rounded-[6px] border border-[#FCA5A5] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[12px] font-medium text-[#DC2626] inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          <span>Xóa</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Confirmation Dialog for Deleting Product */}
+      {confirmDeleteProduct && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-[400px] rounded-[12px] border border-[#E4E4E7] shadow-xl p-5">
+            <h3 className="text-[15px] font-bold text-[#09090B]">
+              Xác nhận xóa sản phẩm?
+            </h3>
+            <p className="text-[13px] text-[#52525B] mt-1.5 leading-relaxed">
+              Bạn có chắc chắn muốn xóa sản phẩm{' '}
+              <strong className="text-[#09090B]">&ldquo;{confirmDeleteProduct.name}&rdquo;</strong> khỏi
+              danh mục không?
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteProduct(null)}
+                className="h-[34px] px-3.5 rounded-[8px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12.5px] font-medium text-[#18181B] cursor-pointer"
+              >
+                Giữ lại
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteProduct(confirmDeleteProduct.id);
+                  showToast(`Đã xóa sản phẩm "${confirmDeleteProduct.name}".`);
+                  setConfirmDeleteProduct(null);
+                }}
+                className="h-[34px] px-3.5 rounded-[8px] bg-[#DC2626] hover:bg-[#B91C1C] text-white text-[12.5px] font-semibold cursor-pointer"
+              >
+                Xác nhận xóa
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Modal Add / Edit Product */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-[500px] rounded-[10px] border border-[#CBD5E1] shadow-lg overflow-hidden">
-            <div className="px-5 py-3.5 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between">
-              <h3 className="text-[15px] font-bold text-[#0F172A]">
-                {editingProduct ? 'Sửa thông tin Sản phẩm' : 'Thêm Sản phẩm mới'}
-              </h3>
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-[500px] rounded-[12px] border border-[#E4E4E7] shadow-xl overflow-hidden">
+            <div className="px-5 py-4 bg-[#FAFAFA] border-b border-[#E4E4E7] flex items-center justify-between">
+              <div>
+                <h3 className="text-[15px] font-bold text-[#09090B]">
+                  {editingProduct ? 'Chỉnh sửa thông tin Sản phẩm' : 'Thêm Sản phẩm mới'}
+                </h3>
+                <p className="text-[12px] text-[#71717A]">
+                  Điền thông tin định danh SKU, ngành hàng và giá bán
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="text-[#64748B] hover:text-[#0F172A] cursor-pointer"
+                className="w-7 h-7 rounded-[6px] hover:bg-[#F4F4F5] flex items-center justify-center text-[#71717A] hover:text-[#09090B] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveProduct} className="p-5 space-y-3.5">
+            <form onSubmit={handleSaveProduct} className="p-5 space-y-4">
               {formErr && (
-                <div className="p-2.5 rounded-[8px] bg-[#FEF2F2] border border-[#FCA5A5] flex items-center gap-2 text-[12px] text-[#991B1B]">
+                <div className="p-3 rounded-[8px] bg-[#FEF2F2] border border-[#FECACA] flex items-center gap-2 text-[12.5px] text-[#991B1B]">
                   <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
                   <span>{formErr}</span>
                 </div>
               )}
 
               <div>
-                <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
+                <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
                   Tên sản phẩm *
                 </label>
                 <input
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="VD: Tai nghe Bluetooth, Nồi chiên không dầu, Áo Polo..."
-                  className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] outline-none focus:border-[#2563EB]"
+                  placeholder="VD: Tai nghe Bluetooth Sony, Nồi chiên không dầu, Áo Polo..."
+                  className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
                 />
               </div>
 
               {/* Category selection + quick inline add */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[12px] font-semibold text-[#0F172A]">
+                  <label className="text-[12.5px] font-medium text-[#18181B]">
                     Danh mục ngành hàng *
                   </label>
                   <button
                     type="button"
                     onClick={() => setIsAddingInlineCat((prev) => !prev)}
-                    className="text-[11.5px] font-semibold text-[#2563EB] hover:underline cursor-pointer"
+                    className="text-[12px] font-semibold text-[#2563EB] hover:underline cursor-pointer"
                   >
                     {isAddingInlineCat ? '← Chọn danh mục có sẵn' : '+ Tạo danh mục mới'}
                   </button>
@@ -589,7 +829,7 @@ export function CatalogPage() {
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] bg-white px-2.5 text-[13px] outline-none focus:border-[#2563EB]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] bg-white px-2.5 text-[13px] outline-none focus:border-[#18181B]"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -603,13 +843,13 @@ export function CatalogPage() {
                       type="text"
                       value={inlineCatName}
                       onChange={(e) => setInlineCatName(e.target.value)}
-                      placeholder="Nhập tên danh mục mới (VD: Đồ thể thao, Sách...)"
-                      className="flex-1 h-[36px] rounded-[8px] border border-[#2563EB] bg-[#EFF6FF]/40 px-3 text-[13px] outline-none"
+                      placeholder="Nhập tên ngành hàng mới (VD: Đồ thể thao, Sách...)"
+                      className="flex-1 h-[38px] rounded-[8px] border border-[#2563EB] bg-[#EFF6FF]/30 px-3 text-[13px] outline-none"
                     />
                     <button
                       type="button"
                       onClick={handleQuickAddCategoryInModal}
-                      className="h-[36px] px-3 rounded-[8px] bg-[#2563EB] text-white text-[12px] font-semibold cursor-pointer shrink-0"
+                      className="h-[38px] px-3.5 rounded-[8px] bg-[#2563EB] text-white text-[12.5px] font-semibold cursor-pointer shrink-0"
                     >
                       Lưu DM
                     </button>
@@ -619,7 +859,7 @@ export function CatalogPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
+                  <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
                     Mã SKU *
                   </label>
                   <input
@@ -627,27 +867,27 @@ export function CatalogPage() {
                     value={sku}
                     onChange={(e) => setSku(e.target.value)}
                     placeholder="VD: SP-101"
-                    className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] font-mono outline-none focus:border-[#2563EB]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] font-mono outline-none focus:border-[#18181B]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
-                    Giá bán (VNĐ) *
+                  <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
+                    Giá bán niêm yết (VNĐ) *
                   </label>
                   <input
                     type="number"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="250000"
-                    className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] outline-none focus:border-[#2563EB]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
+                  <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
                     Phân loại / Màu sắc
                   </label>
                   <input
@@ -655,12 +895,12 @@ export function CatalogPage() {
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
                     placeholder="VD: Đen, Bản 256GB, Vị Dâu..."
-                    className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] outline-none focus:border-[#2563EB]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
+                  <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
                     Quy cách / Kích cỡ
                   </label>
                   <input
@@ -668,20 +908,20 @@ export function CatalogPage() {
                     value={size}
                     onChange={(e) => setSize(e.target.value)}
                     placeholder="VD: Hộp 500g, 15 inch, Size L..."
-                    className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] outline-none focus:border-[#2563EB]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
-                    Trạng thái
+                  <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
+                    Trạng thái hiển thị
                   </label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as 'active' | 'hidden')}
-                    className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] bg-white px-2.5 text-[13px] outline-none focus:border-[#2563EB]"
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] bg-white px-2.5 text-[13px] outline-none focus:border-[#18181B]"
                   >
                     <option value="active">Đang bán</option>
                     <option value="hidden">Tạm ẩn</option>
@@ -689,30 +929,30 @@ export function CatalogPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
+                  <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
                     Mô tả ngắn
                   </label>
                   <input
                     type="text"
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Ghi chú sản phẩm..."
-                    className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] outline-none focus:border-[#2563EB]"
+                    placeholder="Ghi chú đặc điểm sản phẩm..."
+                    className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
                   />
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-[#E4E4E7] flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="h-[36px] px-4 rounded-[8px] border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[12.5px] font-semibold text-[#334155] cursor-pointer"
+                  className="h-[36px] px-4 rounded-[8px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12.5px] font-medium text-[#18181B] cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="h-[36px] px-4 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[12.5px] font-semibold cursor-pointer"
+                  className="h-[36px] px-4 rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[12.5px] font-semibold cursor-pointer"
                 >
                   {editingProduct ? 'Lưu thay đổi' : 'Thêm sản phẩm'}
                 </button>
@@ -724,66 +964,66 @@ export function CatalogPage() {
 
       {/* Modal Add / Edit Category */}
       {isCatModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/45 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-[420px] rounded-[10px] border border-[#CBD5E1] shadow-lg overflow-hidden">
-            <div className="px-5 py-3.5 bg-[#F8FAFC] border-b border-[#E2E8F0] flex items-center justify-between">
-              <h3 className="text-[15px] font-bold text-[#0F172A]">
-                {editingCat ? 'Sửa Danh mục' : 'Thêm Danh mục ngành hàng mới'}
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-[420px] rounded-[12px] border border-[#E4E4E7] shadow-xl overflow-hidden">
+            <div className="px-5 py-4 bg-[#FAFAFA] border-b border-[#E4E4E7] flex items-center justify-between">
+              <h3 className="text-[15px] font-bold text-[#09090B]">
+                {editingCat ? 'Chỉnh sửa Danh mục' : 'Thêm Danh mục ngành hàng'}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsCatModalOpen(false)}
-                className="text-[#64748B] hover:text-[#0F172A] cursor-pointer"
+                className="w-7 h-7 rounded-[6px] hover:bg-[#F4F4F5] flex items-center justify-center text-[#71717A] hover:text-[#09090B] cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCategory} className="p-5 space-y-3.5">
+            <form onSubmit={handleSaveCategory} className="p-5 space-y-4">
               {catErr && (
-                <div className="p-2.5 rounded-[8px] bg-[#FEF2F2] border border-[#FCA5A5] flex items-center gap-2 text-[12px] text-[#991B1B]">
+                <div className="p-3 rounded-[8px] bg-[#FEF2F2] border border-[#FECACA] flex items-center gap-2 text-[12.5px] text-[#991B1B]">
                   <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
                   <span>{catErr}</span>
                 </div>
               )}
 
               <div>
-                <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
-                  Tên danh mục *
+                <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
+                  Tên danh mục ngành hàng *
                 </label>
                 <input
                   type="text"
                   value={catName}
                   onChange={(e) => setCatName(e.target.value)}
-                  placeholder="VD: Điện thoại & Phụ kiện, Đồ gia dụng, Thực phẩm..."
-                  className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] outline-none focus:border-[#2563EB]"
+                  placeholder="VD: Thiết bị điện tử, Đồ gia dụng, Thực phẩm..."
+                  className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
                 />
               </div>
 
               <div>
-                <label className="block text-[12px] font-semibold text-[#0F172A] mb-1">
+                <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
                   Mô tả danh mục
                 </label>
                 <input
                   type="text"
                   value={catDesc}
                   onChange={(e) => setCatDesc(e.target.value)}
-                  placeholder="Mô tả ngắn gọn về nhóm sản phẩm này..."
-                  className="w-full h-[36px] rounded-[8px] border border-[#CBD5E1] px-3 text-[13px] outline-none focus:border-[#2563EB]"
+                  placeholder="Mô tả ngắn về nhóm hàng hóa này..."
+                  className="w-full h-[38px] rounded-[8px] border border-[#E4E4E7] px-3 text-[13px] outline-none focus:border-[#18181B]"
                 />
               </div>
 
-              <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-[#E4E4E7] flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsCatModalOpen(false)}
-                  className="h-[36px] px-4 rounded-[8px] border border-[#CBD5E1] bg-white hover:bg-[#F8FAFC] text-[12.5px] font-semibold text-[#334155] cursor-pointer"
+                  className="h-[36px] px-4 rounded-[8px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12.5px] font-medium text-[#18181B] cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="h-[36px] px-4 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[12.5px] font-semibold cursor-pointer"
+                  className="h-[36px] px-4 rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[12.5px] font-semibold cursor-pointer"
                 >
                   {editingCat ? 'Lưu thay đổi' : 'Tạo danh mục'}
                 </button>

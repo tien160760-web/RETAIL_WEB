@@ -1,19 +1,27 @@
 import { useNavigate } from 'react-router-dom';
 import {
+  ChevronRight,
   LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Store,
-  User,
 } from 'lucide-react';
 import { useAdminContext } from '../../context/AdminContext';
+import { ROLES } from '../../data/mockDashboardData';
 
 interface TopbarProps {
   pageTitle?: string;
   isSidebarCollapsed: boolean;
   isMobileMenuOpen: boolean;
   onToggleSidebar: () => void;
+}
+
+function getInitials(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 0) return 'AD';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 export function Topbar({
@@ -24,46 +32,62 @@ export function Topbar({
   const navigate = useNavigate();
   const { currentUser, logout } = useAdminContext();
 
+  const roleLabel =
+    ROLES.find((r) => r.id === currentUser?.role)?.shortLabel ?? 'Quản trị viên';
+  const initials = getInitials(currentUser?.fullName ?? 'Admin');
+
   return (
-    <header className="h-[52px] w-full shrink-0 bg-white border-b border-[#E2E8F0] px-3 sm:px-4 flex items-center justify-between gap-3">
-      {/* Left: Toggle + Brand + Current Page Title */}
+    <header className="h-[56px] w-full shrink-0 bg-white border-b border-[#E4E4E7] px-4 sm:px-6 flex items-center justify-between gap-3">
+      {/* Left: Toggle + Brand + Breadcrumb */}
       <div className="flex items-center gap-2.5 min-w-0">
         <button
           type="button"
           onClick={onToggleSidebar}
-          title="Đóng/mở thanh menu"
-          className="w-[34px] h-[34px] rounded-[8px] border border-[#CBD5E1] bg-white hover:bg-[#F1F5F9] flex items-center justify-center cursor-pointer shrink-0"
+          title="Đóng/mở thanh điều hướng"
+          className="w-[32px] h-[32px] rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[#52525B] hover:text-[#09090B] flex items-center justify-center transition-colors cursor-pointer shrink-0"
         >
-          <Menu className="w-4 h-4 text-[#334155] lg:hidden" />
+          <Menu className="w-4 h-4 lg:hidden" />
           {isSidebarCollapsed ? (
-            <PanelLeftOpen className="w-4 h-4 text-[#334155] hidden lg:block" />
+            <PanelLeftOpen className="w-4 h-4 hidden lg:block" />
           ) : (
-            <PanelLeftClose className="w-4 h-4 text-[#334155] hidden lg:block" />
+            <PanelLeftClose className="w-4 h-4 hidden lg:block" />
           )}
         </button>
 
-        <div className="flex items-center gap-2 text-[14px] font-bold text-[#0F172A] shrink-0">
-          <span className="w-[26px] h-[26px] rounded-[6px] bg-[#2563EB] text-white flex items-center justify-center">
+        <div className="flex items-center gap-2 text-[13.5px] font-bold tracking-tight text-[#09090B] shrink-0">
+          <span className="w-[26px] h-[26px] rounded-[7px] bg-[#18181B] text-white flex items-center justify-center shadow-2xs">
             <Store className="w-3.5 h-3.5" />
           </span>
-          <span>RETAIL DEMO</span>
+          <span>RETAIL_WEB</span>
+          <span className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded-[5px] bg-[#F4F4F5] border border-[#E4E4E7] text-[10.5px] font-mono font-semibold text-[#52525B]">
+            v1.0
+          </span>
         </div>
 
         {pageTitle && (
-          <span className="hidden sm:inline-block text-[13px] font-medium text-[#64748B] border-l border-[#E2E8F0] pl-3 truncate">
-            {pageTitle}
-          </span>
+          <div className="hidden sm:flex items-center gap-1.5 text-[13px] text-[#71717A] pl-1 min-w-0">
+            <ChevronRight className="w-3.5 h-3.5 text-[#A1A1AA] shrink-0" />
+            <span className="font-medium text-[#18181B] truncate">
+              {pageTitle}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* Right: User info + Logout */}
+      {/* Right: User badge + Neutral Logout button */}
       <div className="flex items-center gap-2.5 shrink-0">
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] bg-[#F8FAFC] border border-[#E2E8F0] text-[12px] text-[#334155]">
-          <User className="w-3.5 h-3.5 text-[#2563EB]" />
-          <span className="font-semibold text-[#0F172A]">
-            {currentUser?.fullName ?? 'Admin'}
+        <div className="hidden sm:flex items-center gap-2.5 pl-1.5 pr-3 py-1 rounded-full border border-[#E4E4E7] bg-[#FAFAFA]">
+          <span className="w-6 h-6 rounded-full bg-[#DBEAFE] text-[#1D4ED8] text-[11px] font-bold flex items-center justify-center shrink-0">
+            {initials}
           </span>
-          <span className="text-[#64748B]">({currentUser?.email})</span>
+          <div className="leading-none">
+            <p className="text-[12px] font-semibold text-[#09090B]">
+              {currentUser?.fullName ?? 'Admin'}
+            </p>
+            <p className="text-[10.5px] text-[#71717A] mt-0.5">
+              {roleLabel}
+            </p>
+          </div>
         </div>
 
         <button
@@ -72,7 +96,8 @@ export function Topbar({
             logout();
             navigate('/login');
           }}
-          className="h-[34px] px-3 rounded-[8px] border border-[#FCA5A5] bg-[#FEF2F2] hover:bg-[#FEE2E2] text-[#DC2626] text-[12px] font-semibold flex items-center gap-1.5 cursor-pointer"
+          title="Đăng xuất khỏi phiên làm việc"
+          className="h-[32px] px-3 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#FEF2F2] hover:border-[#FCA5A5] text-[#52525B] hover:text-[#DC2626] text-[12px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span>Đăng xuất</span>

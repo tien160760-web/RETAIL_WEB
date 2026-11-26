@@ -8,6 +8,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { useAdminContext } from '../../context/AdminContext';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -16,60 +17,91 @@ interface SidebarProps {
   onCloseMobile: () => void;
 }
 
-const DEMO_MENUS = [
-  {
-    id: 'products',
-    label: 'Sản phẩm',
-    path: '/products',
-    icon: Package,
-  },
-  {
-    id: 'suppliers',
-    label: 'Nhà cung cấp',
-    path: '/suppliers',
-    icon: Building2,
-  },
-  {
-    id: 'staff',
-    label: 'Quản lý nhân viên',
-    path: '/staff',
-    icon: Users,
-  },
-];
-
 export function Sidebar({
   collapsed,
   mobileOpen,
   onToggleCollapse,
   onCloseMobile,
 }: SidebarProps) {
+  const { products, suppliers, staffAccounts } = useAdminContext();
+
+  const navItems = [
+    {
+      id: 'products',
+      label: 'Sản phẩm & Danh mục',
+      path: '/products',
+      icon: Package,
+      count: products.length,
+    },
+    {
+      id: 'suppliers',
+      label: 'Nhà cung cấp',
+      path: '/suppliers',
+      icon: Building2,
+      count: suppliers.length,
+    },
+    {
+      id: 'staff',
+      label: 'Nhân sự & Phân quyền',
+      path: '/staff',
+      icon: Users,
+      count: staffAccounts.length,
+    },
+  ];
+
   const renderNavItems = (isCompact: boolean, onSelect?: () => void) => (
     <nav className="space-y-1 flex-1">
       {!isCompact && (
-        <p className="px-2.5 mb-2 text-[10.5px] font-bold uppercase tracking-wider text-[#64748B]">
-          Chức năng Demo
+        <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-[#71717A]">
+          Quản trị dữ liệu
         </p>
       )}
-      {DEMO_MENUS.map((item) => {
+      {navItems.map((item) => {
         const Icon = item.icon;
         return (
           <NavLink
             key={item.id}
             to={item.path}
             onClick={onSelect}
-            title={isCompact ? item.label : undefined}
+            title={isCompact ? `${item.label} (${item.count})` : undefined}
             className={({ isActive }) =>
-              `w-full h-[38px] rounded-[8px] flex items-center text-[13px] transition-colors ${
-                isCompact ? 'justify-center px-0' : 'gap-2.5 px-3'
+              `group relative w-full h-[38px] rounded-[8px] flex items-center justify-between text-[13px] transition-all ${
+                isCompact ? 'justify-center px-0' : 'px-3'
               } ${
                 isActive
-                  ? 'bg-[#2563EB] text-white font-semibold'
-                  : 'text-[#334155] font-medium hover:bg-[#F1F5F9] hover:text-[#0F172A]'
+                  ? 'bg-[#F4F4F5] text-[#09090B] font-semibold shadow-[inset_0_0_0_1px_#E4E4E7]'
+                  : 'text-[#52525B] font-medium hover:bg-[#F4F4F5]/60 hover:text-[#09090B]'
               }`
             }
           >
-            <Icon className="w-4 h-4 shrink-0" />
-            {!isCompact && <span className="truncate">{item.label}</span>}
+            {({ isActive }) => (
+              <>
+                {isActive && !isCompact && (
+                  <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r-full bg-[#2563EB]" />
+                )}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Icon
+                    className={`w-4 h-4 shrink-0 transition-colors ${
+                      isActive
+                        ? 'text-[#2563EB]'
+                        : 'text-[#71717A] group-hover:text-[#18181B]'
+                    }`}
+                  />
+                  {!isCompact && <span className="truncate">{item.label}</span>}
+                </div>
+                {!isCompact && (
+                  <span
+                    className={`ml-2 px-1.5 py-0.5 rounded-[5px] text-[11px] font-mono tabular-nums ${
+                      isActive
+                        ? 'bg-white text-[#18181B] border border-[#E4E4E7] font-semibold'
+                        : 'text-[#71717A]'
+                    }`}
+                  >
+                    {item.count}
+                  </span>
+                )}
+              </>
+            )}
           </NavLink>
         );
       })}
@@ -80,24 +112,24 @@ export function Sidebar({
     <>
       {/* Desktop Sidebar */}
       <aside
-        style={{ width: collapsed ? 64 : 210 }}
-        className="hidden lg:flex shrink-0 h-full bg-white border-r border-[#E2E8F0] flex-col px-2.5 py-3 select-none transition-[width] duration-150 overflow-hidden"
+        style={{ width: collapsed ? 64 : 236 }}
+        className="hidden lg:flex shrink-0 h-full bg-white border-r border-[#E4E4E7] flex-col px-2.5 py-4 select-none transition-[width] duration-150 overflow-hidden"
       >
         {renderNavItems(collapsed)}
 
-        <div className="pt-2.5 mt-2 border-t border-[#E2E8F0] shrink-0">
+        <div className="pt-3 mt-2 border-t border-[#E4E4E7] shrink-0">
           <button
             type="button"
             onClick={onToggleCollapse}
-            className={`w-full h-[32px] rounded-[8px] border border-[#CBD5E1] bg-[#F8FAFC] hover:bg-[#F1F5F9] flex items-center text-[11.5px] font-semibold text-[#334155] cursor-pointer ${
-              collapsed ? 'justify-center px-0' : 'justify-between px-2.5'
+            className={`w-full h-[34px] rounded-[8px] border border-[#E4E4E7] bg-[#FAFAFA] hover:bg-[#F4F4F5] flex items-center text-[12px] font-medium text-[#52525B] hover:text-[#09090B] transition-colors cursor-pointer ${
+              collapsed ? 'justify-center px-0' : 'justify-between px-3'
             }`}
           >
-            {!collapsed && <span>Thu gọn menu</span>}
+            {!collapsed && <span>Thu gọn thanh bên</span>}
             {collapsed ? (
-              <ChevronRight className="w-4 h-4 text-[#475569]" />
+              <ChevronRight className="w-4 h-4 text-[#71717A]" />
             ) : (
-              <ChevronLeft className="w-4 h-4 text-[#475569]" />
+              <ChevronLeft className="w-4 h-4 text-[#71717A]" />
             )}
           </button>
         </div>
@@ -106,23 +138,26 @@ export function Sidebar({
       {/* Mobile Drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden flex">
-          <div onClick={onCloseMobile} className="fixed inset-0 bg-black/40" />
-          <aside className="relative z-10 w-[230px] max-w-[80vw] h-full bg-white border-r border-[#E2E8F0] flex flex-col px-3 py-3.5 shadow-lg">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-[#E2E8F0]">
+          <div
+            onClick={onCloseMobile}
+            className="fixed inset-0 bg-black/40 backdrop-blur-[1px]"
+          />
+          <aside className="relative z-10 w-[250px] max-w-[82vw] h-full bg-white border-r border-[#E4E4E7] flex flex-col px-3 py-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3.5 mb-3.5 border-b border-[#E4E4E7]">
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-[6px] bg-[#2563EB] text-white flex items-center justify-center">
+                <span className="w-7 h-7 rounded-[7px] bg-[#18181B] text-white flex items-center justify-center">
                   <Store className="w-3.5 h-3.5" />
                 </span>
-                <span className="text-[13.5px] font-bold text-[#0F172A]">
-                  RETAIL DEMO
+                <span className="text-[13.5px] font-bold tracking-tight text-[#09090B]">
+                  RETAIL_WEB
                 </span>
               </div>
               <button
                 type="button"
                 onClick={onCloseMobile}
-                className="w-7 h-7 rounded-[6px] border border-[#CBD5E1] flex items-center justify-center cursor-pointer"
+                className="w-7 h-7 rounded-[6px] border border-[#E4E4E7] hover:bg-[#F4F4F5] flex items-center justify-center cursor-pointer"
               >
-                <X className="w-4 h-4 text-[#475569]" />
+                <X className="w-4 h-4 text-[#52525B]" />
               </button>
             </div>
             {renderNavItems(false, onCloseMobile)}
