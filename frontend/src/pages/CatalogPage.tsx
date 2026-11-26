@@ -640,13 +640,6 @@ export function CatalogPage() {
       {/* Top Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 rounded bg-[#EFF6FF] border border-[#BFDBFE] text-[#1D4ED8] text-[11px] font-mono font-bold">
-              {canManageCatalog
-                ? 'UC06 · Actor: Quản trị viên (Admin)'
-                : 'UC05 · Chế độ Xem & Tìm kiếm sản phẩm'}
-            </span>
-          </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[#09090B]">
             {canManageCatalog
               ? 'Quản lý Danh mục, Sản phẩm, Biến thể & Hình ảnh'
@@ -655,7 +648,7 @@ export function CatalogPage() {
           <p className="text-[13px] text-[#71717A] mt-0.5">
             {canManageCatalog
               ? 'Đăng sản phẩm chuẩn Shopee: Album nhiều hình ảnh, tự động tạo bảng phân loại nhiều Màu sắc × nhiều Kích cỡ (Size)'
-              : 'Theo đặc tả UC06, chỉ Quản trị viên (Admin) có quyền thêm, sửa, xóa danh mục và sản phẩm'}
+              : 'Chỉ Quản trị viên (Admin) có quyền thêm, sửa, xóa danh mục và sản phẩm'}
           </p>
         </div>
 
@@ -1082,7 +1075,7 @@ export function CatalogPage() {
                                 </div>
                               ) : (
                                 <span className="text-[11.5px] text-[#71717A] italic">
-                                  Chỉ xem (UC05)
+                                  Chỉ xem
                                 </span>
                               )}
                             </td>
@@ -1276,7 +1269,7 @@ export function CatalogPage() {
                         </div>
                       ) : (
                         <span className="text-[11px] text-[#71717A] italic">
-                          Chỉ xem (UC05)
+                          Chỉ xem
                         </span>
                       )}
                     </div>

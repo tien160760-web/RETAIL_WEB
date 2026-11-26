@@ -119,17 +119,17 @@ export function SuppliersPage() {
     const cleanEmail = email.trim();
 
     if (!cleanCode || !cleanName || !cleanPhone) {
-      setFormErr('Ngoại lệ UC07: Thông tin bắt buộc bị bỏ trống (Mã NCC, Tên NCC, Số điện thoại).');
+      setFormErr('Thông tin bắt buộc bị bỏ trống (Mã NCC, Tên NCC, Số điện thoại).');
       return;
     }
 
     if (!/^0\d{9,10}$/.test(cleanPhone)) {
-      setFormErr('Ngoại lệ UC07: Định dạng số điện thoại không hợp lệ (10-11 chữ số, bắt đầu bằng 0).');
+      setFormErr('Định dạng số điện thoại không hợp lệ (10-11 chữ số, bắt đầu bằng 0).');
       return;
     }
 
     if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setFormErr('Ngoại lệ UC07: Định dạng địa chỉ email không hợp lệ.');
+      setFormErr('Định dạng địa chỉ email không hợp lệ.');
       return;
     }
 
@@ -137,7 +137,7 @@ export function SuppliersPage() {
       (s) => s.code.toUpperCase() === cleanCode && s.id !== editingSupplier?.id
     );
     if (duplicate) {
-      setFormErr(`Ngoại lệ UC07: Mã nhà cung cấp "${cleanCode}" đã bị trùng.`);
+      setFormErr(`Mã nhà cung cấp "${cleanCode}" đã bị trùng.`);
       return;
     }
 
@@ -173,11 +173,6 @@ export function SuppliersPage() {
       {/* Unboxed Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 rounded bg-[#EFF6FF] border border-[#BFDBFE] text-[#1D4ED8] text-[11px] font-mono font-bold">
-              UC07 · Actor: Quản lý chi nhánh
-            </span>
-          </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[#09090B]">
             Quản lý Nhà cung cấp
           </h1>

@@ -12,13 +12,11 @@ import { ROLES } from './data/mockDashboardData';
 
 function RoleGuard({
   allowedRoles,
-  ucCode,
   featureName,
   actorRequiredLabel,
   children,
 }: {
   allowedRoles: UserRole[];
-  ucCode: string;
   featureName: string;
   actorRequiredLabel: string;
   children: React.ReactNode;
@@ -44,13 +42,13 @@ function RoleGuard({
       </div>
       <div className="space-y-1.5">
         <span className="inline-block px-2.5 py-0.5 rounded-full bg-[#FEF2F2] text-[#B91C1C] text-[11.5px] font-bold">
-          Từ chối truy cập · {ucCode}
+          Từ chối truy cập
         </span>
         <h2 className="text-[18px] font-bold text-[#09090B]">
           Bạn không có quyền truy cập chức năng &ldquo;{featureName}&rdquo;
         </h2>
         <p className="text-[13px] text-[#52525B] leading-relaxed">
-          Theo đặc tả <strong>{ucCode}</strong>, chức năng này chỉ dành cho Actor:{' '}
+          Chức năng này chỉ dành cho vai trò:{' '}
           <strong className="text-[#09090B]">{actorRequiredLabel}</strong>. Tài khoản
           hiện tại của bạn đang đăng nhập với vai trò{' '}
           <strong className="text-[#2563EB]">{currentRoleLabel}</strong>.
@@ -83,7 +81,6 @@ function AppRoutes() {
     );
   }
 
-  // Default route per role after login (UC02 step 4)
   const defaultRoute =
     currentUser.role === 'BRANCH_MANAGER' ? '/suppliers' : '/products';
 
@@ -91,11 +88,11 @@ function AppRoutes() {
     return <Navigate to={defaultRoute} replace />;
   }
 
-  let pageTitle = 'Quản lý Danh mục & Sản phẩm (UC06)';
+  let pageTitle = 'Quản lý Danh mục & Sản phẩm';
   if (location.pathname.startsWith('/suppliers')) {
-    pageTitle = 'Quản lý Nhà cung cấp (UC07)';
+    pageTitle = 'Quản lý Nhà cung cấp';
   } else if (location.pathname.startsWith('/staff')) {
-    pageTitle = 'Quản lý Tài khoản & Phân quyền Nhân viên (UC04)';
+    pageTitle = 'Quản lý Tài khoản & Phân quyền Nhân viên';
   }
 
   return (
@@ -108,7 +105,6 @@ function AppRoutes() {
           element={
             <RoleGuard
               allowedRoles={['ADMIN', 'BRANCH_MANAGER']}
-              ucCode="UC07"
               featureName="Quản lý Nhà cung cấp"
               actorRequiredLabel="Quản lý chi nhánh / Quản trị viên"
             >
@@ -121,7 +117,6 @@ function AppRoutes() {
           element={
             <RoleGuard
               allowedRoles={['ADMIN']}
-              ucCode="UC04"
               featureName="Quản lý tài khoản và phân quyền nhân viên"
               actorRequiredLabel="Quản trị viên (Admin)"
             >

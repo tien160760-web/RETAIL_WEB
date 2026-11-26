@@ -62,12 +62,10 @@ export function OrganizationPage() {
   const [staffEmail, setStaffEmail] = useState('');
   const [staffPassword, setStaffPassword] = useState('123');
   const [staffPhone, setStaffPhone] = useState('');
-  // UC04 Step 3: Vai trò được phép phân công cho nhân viên: Quản lý chi nhánh, Nhân viên kho hoặc Nhân viên bán hàng
   const [staffRole, setStaffRole] = useState<UserRole>('SALES_STAFF');
   const [staffBranchId, setStaffBranchId] = useState<string>('cn-hn');
   const [staffErr, setStaffErr] = useState<string | null>(null);
 
-  // Strict UC04 Precondition Check: ONLY ADMIN can access Staff Management
   const isAdmin = currentUser?.role === 'ADMIN';
 
   const showToast = (msg: string) => {
@@ -104,10 +102,10 @@ export function OrganizationPage() {
           <ShieldAlert className="w-6 h-6" />
         </div>
         <h2 className="text-[17px] font-bold text-[#09090B]">
-          Chỉ Quản trị viên (Admin) mới được quản lý nhân viên (UC04)
+          Chỉ Quản trị viên (Admin) mới được quản lý nhân viên
         </h2>
         <p className="text-[13px] text-[#52525B]">
-          Tài khoản hiện tại không thỏa mãn tiền điều kiện của UC04.
+          Tài khoản hiện tại của bạn không có quyền truy cập chức năng này.
         </p>
       </div>
     );
@@ -146,14 +144,14 @@ export function OrganizationPage() {
 
     if (!cleanName || !cleanEmail || !cleanPhone) {
       setStaffErr(
-        'Ngoại lệ UC04: Thông tin nhập không hợp lệ hoặc thiếu trường bắt buộc (Họ tên, Email, SĐT).'
+        'Thông tin nhập không hợp lệ hoặc thiếu trường bắt buộc (Họ tên, Email, SĐT).'
       );
       return;
     }
 
     if (!/^0\d{9,10}$/.test(cleanPhone)) {
       setStaffErr(
-        'Ngoại lệ UC04: Số điện thoại nhân viên không hợp lệ (cần 10-11 chữ số, bắt đầu bằng 0).'
+        'Số điện thoại nhân viên không hợp lệ (cần 10-11 chữ số, bắt đầu bằng 0).'
       );
       return;
     }
@@ -163,34 +161,29 @@ export function OrganizationPage() {
         (s) => s.email.toLowerCase() === cleanEmail && s.id !== editingStaff?.id
       )
     ) {
-      setStaffErr(`Ngoại lệ UC04: Email "${cleanEmail}" đã tồn tại trong hệ thống.`);
+      setStaffErr(`Email "${cleanEmail}" đã tồn tại trong hệ thống.`);
       return;
     }
 
     const branchExists = branches.some((b) => b.id === staffBranchId);
     if (!branchExists) {
-      setStaffErr('Ngoại lệ UC04: Chi nhánh làm việc không tồn tại.');
+      setStaffErr('Chi nhánh làm việc không tồn tại.');
       return;
     }
 
-    // UC04 Step 3: Vai trò nhân viên được phân công: Quản lý chi nhánh, Nhân viên kho hoặc Nhân viên bán hàng
     const allowedStaffRoles: UserRole[] = [
       'BRANCH_MANAGER',
       'WAREHOUSE_STAFF',
       'SALES_STAFF',
     ];
     if (!allowedStaffRoles.includes(staffRole)) {
-      setStaffErr(
-        'Ngoại lệ UC04: Thao tác phân quyền không được phép theo quy tắc hệ thống.'
-      );
+      setStaffErr('Thao tác phân quyền không được phép theo quy tắc hệ thống.');
       return;
     }
 
     if (editingStaff) {
       if (editingStaff.role === 'ADMIN') {
-        setStaffErr(
-          'Ngoại lệ UC04: Không được phép hạ quyền tài khoản Quản trị viên gốc.'
-        );
+        setStaffErr('Không được phép hạ quyền tài khoản Quản trị viên gốc.');
         return;
       }
       updateStaffAccount(editingStaff.id, {
@@ -201,7 +194,7 @@ export function OrganizationPage() {
         role: staffRole,
         branchId: staffBranchId,
       });
-      showToast(`UC04: Đã cập nhật thông tin & phân quyền nhân viên "${cleanName}".`);
+      showToast(`Đã cập nhật thông tin & phân quyền nhân viên "${cleanName}".`);
     } else {
       addStaffAccount({
         fullName: cleanName,
@@ -212,7 +205,7 @@ export function OrganizationPage() {
         branchId: staffBranchId,
         isActive: true,
       });
-      showToast(`UC04: Đã tạo tài khoản nhân viên mới "${cleanName}".`);
+      showToast(`Đã tạo tài khoản nhân viên mới "${cleanName}".`);
     }
     setIsStaffModalOpen(false);
   };
@@ -232,16 +225,11 @@ export function OrganizationPage() {
       {/* Unboxed Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 rounded bg-[#EFF6FF] border border-[#BFDBFE] text-[#1D4ED8] text-[11px] font-mono font-bold">
-              UC04 · Actor: Quản trị viên (Admin)
-            </span>
-          </div>
           <h1 className="text-[22px] font-bold tracking-tight text-[#09090B]">
             Quản lý Tài khoản &amp; Phân quyền Nhân viên
           </h1>
           <p className="text-[13px] text-[#71717A] mt-0.5">
-            Chỉ Admin được tạo, cập nhật, vô hiệu hóa tài khoản nhân viên và phân quyền Quản lý chi nhánh, Nhân viên kho, Nhân viên bán hàng
+            Tạo mới, cập nhật, vô hiệu hóa tài khoản nhân viên và phân quyền Quản lý chi nhánh, Nhân viên kho, Nhân viên bán hàng
           </p>
         </div>
 
@@ -292,7 +280,7 @@ export function OrganizationPage() {
             {lockedStaffCount}
           </p>
           <p className="text-[11.5px] text-[#71717A] mt-0.5">
-            Chặn đăng nhập theo UC02/UC04
+            Đã thu hồi quyền đăng nhập
           </p>
         </div>
 
@@ -386,7 +374,7 @@ export function OrganizationPage() {
                 <th className="px-4">Vai trò phân quyền</th>
                 <th className="px-4">Chi nhánh làm việc</th>
                 <th className="px-4 text-center">Trạng thái</th>
-                <th className="px-5 text-right">Thao tác (Admin)</th>
+                <th className="px-5 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E4E7]/80 text-[13px]">
@@ -490,7 +478,7 @@ export function OrganizationPage() {
                                 setBannerErr(res.error ?? 'Không thể khóa tài khoản.');
                               } else {
                                 showToast(
-                                  `UC04: Đã ${s.isActive ? 'vô hiệu hóa' : 'kích hoạt'} tài khoản "${s.fullName}".`
+                                  `Đã ${s.isActive ? 'vô hiệu hóa' : 'kích hoạt'} tài khoản "${s.fullName}".`
                                 );
                               }
                             }}
@@ -513,12 +501,12 @@ export function OrganizationPage() {
               Hiển thị <strong className="text-[#18181B]">{filteredStaff.length}</strong> /{' '}
               <strong className="text-[#18181B]">{staffAccounts.length}</strong> tài khoản
             </span>
-            <span>Đặc tả UC04: Phân quyền Quản lý chi nhánh, Nhân viên kho, Nhân viên bán hàng</span>
+            <span>Phân quyền Quản lý chi nhánh, Nhân viên kho, Nhân viên bán hàng</span>
           </div>
         </div>
       </div>
 
-      {/* Modal Add / Edit Staff (UC04 Step 3) */}
+      {/* Modal Add / Edit Staff */}
       {isStaffModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-[480px] rounded-[12px] border border-[#E4E4E7] shadow-xl overflow-hidden">
@@ -526,11 +514,11 @@ export function OrganizationPage() {
               <div>
                 <h3 className="text-[15px] font-bold text-[#09090B]">
                   {editingStaff
-                    ? 'Cập nhật & Phân quyền Nhân viên (UC04)'
-                    : 'Tạo tài khoản Nhân viên mới (UC04)'}
+                    ? 'Cập nhật & Phân quyền Nhân viên'
+                    : 'Tạo tài khoản Nhân viên mới'}
                 </h3>
                 <p className="text-[12px] text-[#71717A]">
-                  Bước 3 UC04: Nhập thông tin, chi nhánh làm việc và vai trò nhân viên
+                  Nhập thông tin nhân viên, chi nhánh làm việc và vai trò
                 </p>
               </div>
               <button
@@ -607,7 +595,7 @@ export function OrganizationPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[12.5px] font-medium text-[#18181B] mb-1">
-                    Vai trò phân quyền (UC04) *
+                    Vai trò phân quyền *
                   </label>
                   <select
                     value={staffRole}

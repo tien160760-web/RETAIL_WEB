@@ -20,25 +20,25 @@ const DEMO_ACCOUNTS = [
     role: 'Quản trị viên (Admin)',
     email: 'admin@retail.vn',
     password: '123',
-    ucPerm: 'UC04 (Nhân viên) · UC06 (Sản phẩm)',
+    permNote: 'Toàn quyền: Nhân viên · Sản phẩm · NCC',
   },
   {
     role: 'Quản lý Chi nhánh',
     email: 'manager.hn@retail.vn',
     password: '123',
-    ucPerm: 'UC07 (Nhà cung cấp) · Không có UC04',
+    permNote: 'Quản lý Nhà cung cấp · Xem Sản phẩm',
   },
   {
     role: 'Nhân viên Kho',
     email: 'warehouse.dn@retail.vn',
     password: '123',
-    ucPerm: 'Chỉ xem SP · Không có UC04/UC07',
+    permNote: 'Tra cứu Sản phẩm (CN Đà Nẵng)',
   },
   {
     role: 'Nhân viên Bán hàng',
     email: 'sales.hcm@retail.vn',
     password: '123',
-    ucPerm: 'Chỉ xem SP · Không có UC04/UC07',
+    permNote: 'Tra cứu Sản phẩm (CN TP.HCM)',
   },
 ];
 
@@ -48,12 +48,12 @@ export function LoginPage() {
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
-  // Login form state (UC02)
+  // Login form state
   const [email, setEmail] = useState('admin@retail.vn');
   const [password, setPassword] = useState('123');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Customer Registration form state (UC01 - Actor: Khách hàng)
+  // Customer Registration form state
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
@@ -90,7 +90,6 @@ export function LoginPage() {
     }
   };
 
-  // UC01 – Đăng ký tài khoản (Actor: Khách hàng -> Kết quả: lưu với vai trò Khách hàng)
   const handleRegisterCustomer = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -101,17 +100,17 @@ export function LoginPage() {
     const cleanPhone = regPhone.trim();
 
     if (!cleanName || !cleanEmail || !cleanPhone || !regPassword) {
-      setErrorMsg('Ngoại lệ UC01: Thông tin không hợp lệ hoặc thiếu trường bắt buộc.');
+      setErrorMsg('Thông tin không hợp lệ hoặc thiếu trường bắt buộc.');
       return;
     }
 
     if (!/^0\d{9,10}$/.test(cleanPhone)) {
-      setErrorMsg('Ngoại lệ UC01: Số điện thoại không đúng định dạng (10-11 chữ số, bắt đầu bằng 0).');
+      setErrorMsg('Số điện thoại không đúng định dạng (10-11 chữ số, bắt đầu bằng 0).');
       return;
     }
 
     if (regPassword !== regConfirmPassword) {
-      setErrorMsg('Ngoại lệ UC01: Mật khẩu xác nhận không khớp.');
+      setErrorMsg('Mật khẩu xác nhận không khớp.');
       return;
     }
 
@@ -121,7 +120,7 @@ export function LoginPage() {
     const existsInCustomers = registeredCustomerEmails.includes(cleanEmail);
 
     if (existsInStaff || existsInCustomers) {
-      setErrorMsg('Ngoại lệ UC01: Email đã được sử dụng trong hệ thống.');
+      setErrorMsg('Email đã được sử dụng trong hệ thống.');
       return;
     }
 
@@ -133,7 +132,7 @@ export function LoginPage() {
     setRegConfirmPassword('');
     setMode('login');
     setSuccessMsg(
-      `UC01 Thành công: Đã tạo tài khoản "${cleanName}" (${cleanEmail}) với vai trò KHÁCH HÀNG (CUSTOMER). Lưu ý: Tài khoản nhân viên nội bộ chỉ do Admin cấp trong UC04.`
+      `Đăng ký thành công tài khoản khách hàng "${cleanName}" (${cleanEmail}).`
     );
   };
 
@@ -148,18 +147,18 @@ export function LoginPage() {
           <h1 className="text-[20px] font-bold tracking-tight text-[#09090B]">
             RETAIL_WEB
           </h1>
-          <span className="px-2 py-0.5 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] text-[11px] font-mono font-semibold text-[#1D4ED8]">
-            Chuẩn Đặc tả 26 UC
+          <span className="px-2 py-0.5 rounded-full bg-[#F4F4F5] border border-[#E4E4E7] text-[11px] font-mono font-medium text-[#52525B]">
+            Backoffice
           </span>
         </div>
         <p className="text-[13px] text-[#71717A] mt-1">
-          Hệ thống Website Bán hàng Đa chi nhánh — Kiểm soát phân quyền theo đúng Actor
+          Hệ thống Website Bán hàng Đa chi nhánh
         </p>
       </div>
 
       {/* Main Auth Card */}
       <div className="w-full max-w-[460px] bg-white rounded-[12px] border border-[#E4E4E7] shadow-[0_1px_3px_0_rgba(0,0,0,0.04)] overflow-hidden">
-        {/* Segmented Control Tabs: UC02 vs UC01 */}
+        {/* Segmented Control Tabs */}
         <div className="p-3 bg-[#FAFAFA] border-b border-[#E4E4E7]">
           <div className="grid grid-cols-2 gap-1 p-1 rounded-[9px] bg-[#E4E4E7]/60">
             <button
@@ -174,7 +173,7 @@ export function LoginPage() {
                   : 'text-[#52525B] hover:text-[#09090B]'
               }`}
             >
-              Đăng nhập (UC02)
+              Đăng nhập
             </button>
             <button
               type="button"
@@ -189,7 +188,7 @@ export function LoginPage() {
                   : 'text-[#52525B] hover:text-[#09090B]'
               }`}
             >
-              Đăng ký Khách hàng (UC01)
+              Đăng ký tài khoản
             </button>
           </div>
         </div>
@@ -267,19 +266,19 @@ export function LoginPage() {
                 type="submit"
                 className="w-full h-[38px] rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
-                <span>Đăng nhập theo vai trò (UC02)</span>
+                <span>Đăng nhập</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
           ) : (
             <form onSubmit={handleRegisterCustomer} className="space-y-3.5">
               <div className="p-2.5 rounded-[8px] bg-[#EFF6FF] border border-[#BFDBFE] text-[12px] text-[#1E40AF]">
-                <strong>Đặc tả UC01 (Actor: Khách hàng):</strong> Tài khoản đăng ký tại đây sẽ được lưu với vai trò <strong>Khách hàng (CUSTOMER)</strong>. Tài khoản Nhân viên chỉ do Admin tạo trong <strong>UC04</strong>.
+                Tài khoản đăng ký tại đây được tạo với vai trò <strong>Khách hàng</strong>. Tài khoản Nhân viên nội bộ chỉ do Quản trị viên (Admin) cấp.
               </div>
 
               <div>
                 <label className="block text-[12px] font-medium text-[#18181B] mb-1">
-                  Họ và tên khách hàng *
+                  Họ và tên *
                 </label>
                 <div className="h-[36px] rounded-[8px] border border-[#E4E4E7] bg-white focus-within:border-[#18181B] px-3 flex items-center gap-2">
                   <User className="w-4 h-4 text-[#71717A] shrink-0" />
@@ -359,7 +358,7 @@ export function LoginPage() {
                 type="submit"
                 className="w-full h-[38px] rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[13px] font-semibold transition-colors cursor-pointer mt-1"
               >
-                Đăng ký tài khoản Khách hàng (UC01)
+                Đăng ký tài khoản
               </button>
             </form>
           )}
@@ -371,7 +370,7 @@ export function LoginPage() {
             <div className="flex items-center justify-between mb-2.5">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[#71717A] flex items-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#2563EB]" />
-                <span>Test phân quyền theo Actor (Bấm để chọn)</span>
+                <span>Chọn nhanh tài khoản theo vai trò</span>
               </span>
               <button
                 type="button"
@@ -382,7 +381,7 @@ export function LoginPage() {
                 }}
                 className="text-[11px] font-medium text-[#71717A] hover:text-[#DC2626] hover:underline cursor-pointer"
               >
-                Test TK bị vô hiệu hóa
+                Thử TK bị vô hiệu hóa
               </button>
             </div>
 
@@ -411,7 +410,7 @@ export function LoginPage() {
                       {acc.email}
                     </p>
                     <p className="text-[10px] text-[#71717A] truncate mt-0.5">
-                      {acc.ucPerm}
+                      {acc.permNote}
                     </p>
                   </button>
                 );

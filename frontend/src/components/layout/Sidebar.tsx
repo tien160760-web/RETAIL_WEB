@@ -23,7 +23,6 @@ interface SidebarProps {
 interface MenuItemDef {
   id: string;
   label: string;
-  ucBadge: string;
   path: string;
   icon: React.ComponentType<{ className?: string }>;
   count: number;
@@ -45,31 +44,25 @@ export function Sidebar({
     {
       id: 'products',
       label: currentRole === 'ADMIN' ? 'Sản phẩm & Danh mục' : 'Tra cứu Sản phẩm',
-      ucBadge: currentRole === 'ADMIN' ? 'UC06' : 'UC05',
       path: '/products',
       icon: Package,
       count: products.length,
-      // Admin manages products (UC06); other roles can view/search products (UC05)
       allowedRoles: ['ADMIN', 'BRANCH_MANAGER', 'WAREHOUSE_STAFF', 'SALES_STAFF'],
     },
     {
       id: 'suppliers',
       label: 'Nhà cung cấp',
-      ucBadge: 'UC07',
       path: '/suppliers',
       icon: Building2,
       count: suppliers.length,
-      // UC07 Actor: Quản lý chi nhánh (and Admin superuser)
       allowedRoles: ['ADMIN', 'BRANCH_MANAGER'],
     },
     {
       id: 'staff',
       label: 'Quản lý Nhân viên',
-      ucBadge: 'UC04',
       path: '/staff',
       icon: Users,
       count: staffAccounts.length,
-      // UC04 Actor: ONLY Quản trị viên (Admin)
       allowedRoles: ['ADMIN'],
     },
   ];
@@ -83,11 +76,11 @@ export function Sidebar({
       {!isCompact && (
         <div className="px-3 mb-2.5">
           <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#71717A]">
-            Chức năng theo quyền
+            Danh mục quản lý
           </p>
           <p className="text-[11px] text-[#2563EB] font-medium flex items-center gap-1 mt-0.5">
             <ShieldCheck className="w-3 h-3 shrink-0" />
-            <span className="truncate">Actor: {roleLabel}</span>
+            <span className="truncate">{roleLabel}</span>
           </p>
         </div>
       )}
@@ -99,11 +92,7 @@ export function Sidebar({
             key={item.id}
             to={item.path}
             onClick={onSelect}
-            title={
-              isCompact
-                ? `${item.label} (${item.ucBadge} · ${item.count})`
-                : undefined
-            }
+            title={isCompact ? `${item.label} (${item.count})` : undefined}
             className={({ isActive }) =>
               `group relative w-full h-[40px] rounded-[8px] flex items-center justify-between text-[13px] transition-all ${
                 isCompact ? 'justify-center px-0' : 'px-3'
@@ -131,13 +120,13 @@ export function Sidebar({
                 </div>
                 {!isCompact && (
                   <span
-                    className={`ml-2 px-1.5 py-0.5 rounded-[5px] text-[10.5px] font-mono tabular-nums shrink-0 ${
+                    className={`ml-2 px-1.5 py-0.5 rounded-[5px] text-[11px] font-mono tabular-nums shrink-0 ${
                       isActive
-                        ? 'bg-white text-[#2563EB] border border-[#BFDBFE] font-bold'
-                        : 'bg-[#F4F4F5] text-[#71717A]'
+                        ? 'bg-white text-[#18181B] border border-[#E4E4E7] font-semibold'
+                        : 'text-[#71717A]'
                     }`}
                   >
-                    {item.ucBadge}
+                    {item.count}
                   </span>
                 )}
               </>
@@ -152,7 +141,7 @@ export function Sidebar({
     <>
       {/* Desktop Sidebar */}
       <aside
-        style={{ width: collapsed ? 64 : 244 }}
+        style={{ width: collapsed ? 64 : 240 }}
         className="hidden lg:flex shrink-0 h-full bg-white border-r border-[#E4E4E7] flex-col px-2.5 py-4 select-none transition-[width] duration-150 overflow-hidden"
       >
         {renderNavItems(collapsed)}
