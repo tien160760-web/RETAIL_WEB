@@ -99,9 +99,25 @@ interface AdminContextValue {
   deleteCategory: (id: string) => boolean;
 
   products: CatalogProduct[];
+  isLoadingProducts: boolean;
   addProduct: (input: Omit<CatalogProduct, 'id'>) => CatalogProduct;
   updateProduct: (id: string, input: Omit<CatalogProduct, 'id'>) => void;
   deleteProduct: (id: string) => void;
+  // Async confirmed Product API operations (Mục 2.2 - Issue #14)
+  createProductAsync: (
+    input: Omit<CatalogProduct, 'id'>
+  ) => Promise<{ ok: true; data: CatalogProduct } | { ok: false; error: string }>;
+  updateProductAsync: (
+    id: string,
+    input: Omit<CatalogProduct, 'id'>
+  ) => Promise<{ ok: true; data: CatalogProduct } | { ok: false; error: string }>;
+  deleteProductAsync: (
+    id: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  fetchAdminProductById: (
+    id: string
+  ) => Promise<{ ok: true; data: CatalogProduct } | { ok: false; error: string }>;
+  refreshProducts: () => Promise<void>;
 
   // Vouchers (UC20)
   vouchers: VoucherItem[];
@@ -243,6 +259,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     INITIAL_RETURN_REQUESTS
   );
   const [apiConnected, setApiConnected] = useState<boolean>(false);
+  const [isLoadingProducts, setIsLoadingProducts] = useState<boolean>(false);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() =>
     Boolean(getStoredToken())
   );
@@ -330,14 +347,18 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const syncFromBackend = async () => {
+    setIsLoadingProducts(true);
     try {
       const healthRes = await apiRequest('/health', {}, true);
       if (!healthRes.ok) return;
       setApiConnected(true);
 
+      const hasToken = Boolean(getStoredToken());
+      const productsEndpoint = hasToken ? '/admin/products' : '/products';
+
       const [catRes, prodRes] = await Promise.all([
         apiRequest<CatalogCategory[]>('/categories', {}, true),
-        apiRequest<CatalogProduct[]>('/products', {}, true),
+        apiRequest<CatalogProduct[]>(productsEndpoint, {}, true),
       ]);
 
       if (catRes.ok && Array.isArray(catRes.data) && catRes.data.length > 0) {
@@ -348,7 +369,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         setProducts(prodRes.data);
       }
 
-      if (getStoredToken()) {
+      if (hasToken) {
         const supRes = await apiRequest<SupplierItem[]>('/suppliers', {}, true);
         if (supRes.ok && Array.isArray(supRes.data)) {
           setSuppliers(supRes.data);
@@ -365,7 +386,13 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       setApiConnected(false);
+    } finally {
+      setIsLoadingProducts(false);
     }
+  };
+
+  const refreshProducts = async () => {
+    await syncFromBackend();
   };
 
   useEffect(() => {
@@ -809,6 +836,95 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         method: 'DELETE',
         headers: getAuthHeaders(),
       }).catch(() => {});
+    }
+  };
+
+  // --- Confirmed Backend API Operations for Products (Mục 2.2 - Issue #14) ---
+  const createProductAsync = async (
+    input: Omit<CatalogProduct, 'id'>
+  ): Promise<{ ok: true; data: CatalogProduct } | { ok: false; error: string }> => {
+    try {
+      const res = await apiRequest<CatalogProduct>('/products', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
+
+      if (!res.ok) {
+        return { ok: false, error: res.error.message };
+      }
+
+      setApiConnected(true);
+      setProducts((prev) => [res.data, ...prev]);
+      return { ok: true, data: res.data };
+    } catch {
+      return {
+        ok: false,
+        error: 'Không thể kết nối tới máy chủ Backend. Vui lòng kiểm tra server và thử lại.',
+      };
+    }
+  };
+
+  const updateProductAsync = async (
+    id: string,
+    input: Omit<CatalogProduct, 'id'>
+  ): Promise<{ ok: true; data: CatalogProduct } | { ok: false; error: string }> => {
+    try {
+      const res = await apiRequest<CatalogProduct>(`/products/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(input),
+      });
+
+      if (!res.ok) {
+        return { ok: false, error: res.error.message };
+      }
+
+      setApiConnected(true);
+      setProducts((prev) => prev.map((p) => (p.id === id ? res.data : p)));
+      return { ok: true, data: res.data };
+    } catch {
+      return {
+        ok: false,
+        error: 'Không thể kết nối tới máy chủ Backend. Dữ liệu bạn nhập vẫn được giữ nguyên.',
+      };
+    }
+  };
+
+  const deleteProductAsync = async (
+    id: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await apiRequest(`/products/${id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        return { ok: false, error: res.error.message };
+      }
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      return { ok: true };
+    } catch {
+      return {
+        ok: false,
+        error: 'Lỗi kết nối Backend khi xóa sản phẩm.',
+      };
+    }
+  };
+
+  const fetchAdminProductById = async (
+    id: string
+  ): Promise<{ ok: true; data: CatalogProduct } | { ok: false; error: string }> => {
+    try {
+      const res = await apiRequest<CatalogProduct>(`/admin/products/${id}`);
+      if (!res.ok) {
+        return { ok: false, error: res.error.message };
+      }
+      return { ok: true, data: res.data };
+    } catch {
+      const localMatch = products.find((p) => p.id === id);
+      if (localMatch) return { ok: true, data: localMatch };
+      return {
+        ok: false,
+        error: 'Không thể nạp chi tiết sản phẩm từ Backend.',
+      };
     }
   };
 
@@ -1417,9 +1533,15 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     updateCategory,
     deleteCategory,
     products,
+    isLoadingProducts,
     addProduct,
     updateProduct,
     deleteProduct,
+    createProductAsync,
+    updateProductAsync,
+    deleteProductAsync,
+    fetchAdminProductById,
+    refreshProducts,
     vouchers,
     addVoucher,
     updateVoucher,

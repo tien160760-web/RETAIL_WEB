@@ -12,6 +12,7 @@ import {
   Layers,
   Link2,
   List,
+  Loader2,
   Package,
   Plus,
   Search,
@@ -105,9 +106,10 @@ export function CatalogPage({
     updateCategory,
     deleteCategory,
     products,
-    addProduct,
-    updateProduct,
-    deleteProduct,
+    createProductAsync,
+    updateProductAsync,
+    deleteProductAsync,
+    fetchAdminProductById,
   } = useAdminContext();
 
   // UC06 Actor: Quản trị viên (Admin). Các vai trò khác chỉ được Xem & Tìm kiếm sản phẩm (UC05)
@@ -156,6 +158,9 @@ export function CatalogPage({
   const [bulkSkuPrefix, setBulkSkuPrefix] = useState('SP');
 
   const [formErr, setFormErr] = useState<string | null>(null);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
+  const [isLoadingEditProduct, setIsLoadingEditProduct] = useState(false);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
   // Category Modal State
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
@@ -317,17 +322,32 @@ export function CatalogPage({
   };
 
   // Mở form Thêm hoặc Sửa tự động khi người dùng nhập trực tiếp URL /products/new hoặc /products/:id/edit
+  // Mục 2.2: Khi mở theo ID, nạp trực tiếp thông tin hiện có của sản phẩm và biến thể từ Backend API
   useEffect(() => {
     if (!canManageCatalog) return;
     if (routeAction === 'create') {
       openCreateModal();
     } else if (routeAction === 'edit' && params.id) {
-      const target = products.find((p) => p.id === params.id);
-      if (target) {
-        openEditModal(target);
-      }
+      let cancelled = false;
+      const loadById = async () => {
+        setIsLoadingEditProduct(true);
+        setBannerErr(null);
+        const res = await fetchAdminProductById(params.id!);
+        if (cancelled) return;
+        setIsLoadingEditProduct(false);
+        if (!res.ok) {
+          setBannerErr(res.error);
+          navigate('/products', { replace: true });
+          return;
+        }
+        openEditModal(res.data);
+      };
+      void loadById();
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [routeAction, params.id, products.length, canManageCatalog]);
+  }, [routeAction, params.id, canManageCatalog]);
 
   // Multi-file upload handler
   const handleFilesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -511,7 +531,7 @@ export function CatalogPage({
     setFormErr(null);
   };
 
-  const handleSaveProduct = (e: React.FormEvent) => {
+  const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErr(null);
 
@@ -526,11 +546,18 @@ export function CatalogPage({
       return;
     }
 
+    const seenSkus = new Set<string>();
     for (const v of variantRows) {
-      if (!v.sku.trim()) {
+      const cleanSku = v.sku.trim().toUpperCase();
+      if (!cleanSku) {
         setFormErr(`Vui lòng nhập Mã SKU cho phân loại "${v.color} - ${v.size}".`);
         return;
       }
+      if (seenSkus.has(cleanSku)) {
+        setFormErr(`Mã SKU "${cleanSku}" đang bị trùng giữa các phân loại trong form. Vui lòng sửa lại.`);
+        return;
+      }
+      seenSkus.add(cleanSku);
       if (v.price <= 0) {
         setFormErr(`Giá bán của phân loại "${v.color} - ${v.size}" phải lớn hơn 0.`);
         return;
@@ -574,15 +601,26 @@ export function CatalogPage({
       })),
     };
 
+    // Mục 2.2: Chờ Backend xác nhận HTTP 200/201; nếu lỗi (trùng SKU, 403, 422...)
+    // giữ nguyên toàn bộ dữ liệu đang nhập trên form và hiển thị thông báo lỗi.
+    setIsSavingProduct(true);
+    const result = editingProduct
+      ? await updateProductAsync(editingProduct.id, payload)
+      : await createProductAsync(payload);
+    setIsSavingProduct(false);
+
+    if (!result.ok) {
+      setFormErr(result.error);
+      return;
+    }
+
     if (editingProduct) {
-      updateProduct(editingProduct.id, payload);
       showToast(
-        `Đã cập nhật "${cleanName}" (${images.length} ảnh · ${variantRows.length} phân loại).`
+        `Đã lưu cập nhật "${result.data.name}" thành công (${result.data.variants.length} phân loại).`
       );
     } else {
-      addProduct(payload);
       showToast(
-        `Đã đăng sản phẩm "${cleanName}" (${images.length} ảnh · ${variantRows.length} phân loại Màu/Size).`
+        `Đã tạo sản phẩm "${result.data.name}" (ID: #${result.data.id}) thành công.`
       );
     }
 
@@ -692,7 +730,7 @@ export function CatalogPage({
 
             <button
               type="button"
-              onClick={openCreateModal}
+              onClick={() => navigate('/products/new')}
               className="h-[36px] px-4 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[13px] font-semibold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
@@ -1085,7 +1123,7 @@ export function CatalogPage({
                                 <div className="inline-flex items-center gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => openEditModal(product)}
+                                    onClick={() => navigate(`/products/${product.id}/edit`)}
                                     className="h-[30px] px-2.5 rounded-[7px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[12px] font-medium text-[#18181B] inline-flex items-center gap-1 transition-colors cursor-pointer"
                                   >
                                     <Edit3 className="w-3.5 h-3.5 text-[#52525B]" />
@@ -1281,7 +1319,7 @@ export function CatalogPage({
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => openEditModal(product)}
+                            onClick={() => navigate(`/products/${product.id}/edit`)}
                             className="h-[28px] px-2.5 rounded-[6px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[11.5px] font-medium text-[#18181B] cursor-pointer"
                           >
                             Sửa
@@ -1387,6 +1425,17 @@ export function CatalogPage({
         )}
       </div>
 
+      {isLoadingEditProduct && (
+        <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[12px] border border-[#E4E4E7] shadow-xl px-6 py-4 flex items-center gap-3">
+            <Loader2 className="w-5 h-5 text-[#2563EB] animate-spin" />
+            <span className="text-[13px] font-semibold text-[#09090B]">
+              Đang nạp thông tin sản phẩm &amp; biến thể theo ID từ Backend...
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Confirmation Dialog for Deleting Product */}
       {confirmDeleteProduct && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
@@ -1409,14 +1458,21 @@ export function CatalogPage({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  deleteProduct(confirmDeleteProduct.id);
-                  showToast(`Đã xóa sản phẩm "${confirmDeleteProduct.name}".`);
+                disabled={isDeletingProduct}
+                onClick={async () => {
+                  setIsDeletingProduct(true);
+                  const res = await deleteProductAsync(confirmDeleteProduct.id);
+                  setIsDeletingProduct(false);
+                  if (!res.ok) {
+                    setBannerErr(res.error ?? 'Không thể xóa sản phẩm.');
+                  } else {
+                    showToast(`Đã xóa sản phẩm "${confirmDeleteProduct.name}".`);
+                  }
                   setConfirmDeleteProduct(null);
                 }}
-                className="h-[34px] px-3.5 rounded-[8px] bg-[#DC2626] hover:bg-[#B91C1C] text-white text-[12.5px] font-semibold cursor-pointer"
+                className="h-[34px] px-3.5 rounded-[8px] bg-[#DC2626] hover:bg-[#B91C1C] disabled:opacity-60 text-white text-[12.5px] font-semibold cursor-pointer"
               >
-                Xác nhận xóa
+                {isDeletingProduct ? 'Đang xóa...' : 'Xác nhận xóa'}
               </button>
             </div>
           </div>
@@ -1968,9 +2024,17 @@ export function CatalogPage({
                   </button>
                   <button
                     type="submit"
-                    className="h-[38px] px-5 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[13px] font-semibold cursor-pointer"
+                    disabled={isSavingProduct}
+                    className="h-[38px] px-5 rounded-[8px] bg-[#2563EB] hover:bg-[#1D4ED8] disabled:opacity-60 text-white text-[13px] font-semibold inline-flex items-center gap-2 cursor-pointer"
                   >
-                    {editingProduct ? 'Lưu cập nhật sản phẩm' : 'Lưu & Hiển thị sản phẩm'}
+                    {isSavingProduct && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <span>
+                      {isSavingProduct
+                        ? 'Đang lưu lên Backend...'
+                        : editingProduct
+                          ? 'Lưu cập nhật sản phẩm'
+                          : 'Lưu & Hiển thị sản phẩm'}
+                    </span>
                   </button>
                 </div>
               </div>

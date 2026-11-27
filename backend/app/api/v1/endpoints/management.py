@@ -332,9 +332,46 @@ def delete_category(
 
 
 @router.get("/products", tags=["Catalog"])
-def list_products(db: Session = Depends(get_db)):
+def list_public_products(db: Session = Depends(get_db)):
+    """API công khai cho khách hàng: chỉ trả về sản phẩm đang hiển thị (is_active = True)."""
+    prods = db.scalars(
+        select(Product)
+        .where(Product.is_active == True)  # noqa: E712
+        .order_by(Product.product_id.desc())
+    ).all()
+    return [_serialize_product(p) for p in prods]
+
+
+@router.get("/products/{product_id}", tags=["Catalog"])
+def get_public_product_detail(product_id: int, db: Session = Depends(get_db)):
+    """API chi tiết sản phẩm công khai: sản phẩm ẩn trả về 404."""
+    prod = db.get(Product, product_id)
+    if not prod or not prod.is_active:
+        raise HTTPException(status_code=404, detail="Sản phẩm không tồn tại hoặc đã bị ẩn.")
+    return _serialize_product(prod)
+
+
+@router.get("/admin/products", tags=["Catalog Admin"])
+def list_admin_products(
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_role("ADMIN", "BRANCH_MANAGER", "WAREHOUSE_STAFF", "SALES_STAFF")),
+):
+    """API quản trị: trả về toàn bộ sản phẩm gồm cả trạng thái công khai và tạm ẩn."""
     prods = db.scalars(select(Product).order_by(Product.product_id.desc())).all()
     return [_serialize_product(p) for p in prods]
+
+
+@router.get("/admin/products/{product_id}", tags=["Catalog Admin"])
+def get_admin_product_detail(
+    product_id: int,
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_role("ADMIN")),
+):
+    """API quản trị lấy chi tiết 1 sản phẩm theo ID (kể cả sản phẩm ẩn) để nạp form Sửa."""
+    prod = db.get(Product, product_id)
+    if not prod:
+        raise HTTPException(status_code=404, detail=f"Không tìm thấy sản phẩm có ID = {product_id}.")
+    return _serialize_product(prod)
 
 
 @router.post("/products", status_code=status.HTTP_201_CREATED, tags=["Catalog"])
@@ -343,16 +380,27 @@ def create_product(
     db: Session = Depends(get_db),
     _admin: User = Depends(require_role("ADMIN")),
 ):
+    if not payload.name.strip():
+        raise HTTPException(status_code=422, detail="Tên sản phẩm không được để trống.")
+    if not payload.variants:
+        raise HTTPException(status_code=422, detail="Sản phẩm phải có ít nhất 1 biến thể (SKU).")
+
     cat = db.scalar(select(Category).where(Category.slug == payload.categoryId))
     if not cat:
-        cat = db.scalars(select(Category)).first()
-    if not cat:
-        raise HTTPException(status_code=400, detail="Chưa có danh mục sản phẩm.")
+        raise HTTPException(status_code=400, detail="Danh mục sản phẩm không tồn tại trong hệ thống.")
 
+    seen_skus: set[str] = set()
     for v in payload.variants:
         clean_sku = v.sku.strip().upper()
+        if not clean_sku:
+            raise HTTPException(status_code=422, detail="Mã SKU của biến thể không được để trống.")
+        if v.price <= 0:
+            raise HTTPException(status_code=422, detail=f"Giá bán của biến thể '{clean_sku}' phải lớn hơn 0.")
+        if clean_sku in seen_skus:
+            raise HTTPException(status_code=409, detail=f"Mã SKU '{clean_sku}' bị trùng lặp trong cùng sản phẩm.")
+        seen_skus.add(clean_sku)
         if db.scalar(select(ProductVariant).where(ProductVariant.sku == clean_sku)):
-            raise HTTPException(status_code=409, detail=f"Mã SKU '{clean_sku}' đã tồn tại.")
+            raise HTTPException(status_code=409, detail=f"Mã SKU '{clean_sku}' đã tồn tại trong hệ thống.")
 
     slug = _slugify(payload.name, str(db.query(Product).count() + 101))
     prod = Product(
@@ -408,12 +456,26 @@ def update_product(
     if not prod:
         raise HTTPException(status_code=404, detail="Không tìm thấy sản phẩm.")
 
-    cat = db.scalar(select(Category).where(Category.slug == payload.categoryId))
-    if cat:
-        prod.category_id = cat.category_id
+    if not payload.name.strip():
+        raise HTTPException(status_code=422, detail="Tên sản phẩm không được để trống.")
+    if not payload.variants:
+        raise HTTPException(status_code=422, detail="Sản phẩm phải có ít nhất 1 biến thể (SKU).")
 
+    cat = db.scalar(select(Category).where(Category.slug == payload.categoryId))
+    if not cat:
+        raise HTTPException(status_code=400, detail="Danh mục sản phẩm không tồn tại.")
+    prod.category_id = cat.category_id
+
+    seen_skus: set[str] = set()
     for v in payload.variants:
         clean_sku = v.sku.strip().upper()
+        if not clean_sku:
+            raise HTTPException(status_code=422, detail="Mã SKU của biến thể không được để trống.")
+        if v.price <= 0:
+            raise HTTPException(status_code=422, detail=f"Giá bán của biến thể '{clean_sku}' phải lớn hơn 0.")
+        if clean_sku in seen_skus:
+            raise HTTPException(status_code=409, detail=f"Mã SKU '{clean_sku}' bị trùng lặp trong cùng sản phẩm.")
+        seen_skus.add(clean_sku)
         dup = db.scalar(
             select(ProductVariant).where(
                 ProductVariant.sku == clean_sku,
