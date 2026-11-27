@@ -5,7 +5,7 @@ from app.services.auth_service import AuthService
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password, create_access_token
 from app.core.dependencies import get_current_user
-from app.models.rbac import User, Role, UserRole
+from app.models.rbac import User
 from app.schemas.auth_schema import (
     RegisterRequest,
     LoginRequest,
@@ -14,12 +14,13 @@ from app.schemas.auth_schema import (
     UpdateProfileRequest,
 )
 
-router = APIRouter(prefix="/auth", tags=["Authentication (UC01, UC02, UC03)"])
+router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 def _build_user_profile(user: User) -> UserProfileResponse:
     roles = [ur.role.role_name for ur in user.user_roles]
     branch_ids = [ba.branch_id for ba in user.branch_accesses]
+    branch_codes = [ba.branch.branch_code.lower() for ba in user.branch_accesses if ba.branch]
     return UserProfileResponse(
         user_id=user.user_id,
         username=user.username,
@@ -29,13 +30,11 @@ def _build_user_profile(user: User) -> UserProfileResponse:
         is_active=user.is_active,
         roles=roles,
         branch_ids=branch_ids,
+        branch_codes=branch_codes,
         created_at=user.created_at,
     )
 
 
-@router.post(
-    "/register", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED
-)
 @router.post(
     "/register", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED
 )
@@ -56,24 +55,26 @@ def register_customer(payload: RegisterRequest, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)):
+    clean_login = payload.username.strip()
     user = (
         db.query(User)
-        .filter((User.username == payload.username) | (User.email == payload.username))
+        .filter((User.username == clean_login) | (User.email == clean_login.lower()))
         .first()
     )
     if not user or not verify_password(payload.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Sai ten dang nhap hoac mat khau",
+            detail="Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.",
         )
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Tai khoan da bi vo hieu hoa",
+            detail="Tài khoản này đã bị vô hiệu hóa. Vui lòng liên hệ Quản trị viên.",
         )
 
     roles = [ur.role.role_name for ur in user.user_roles]
     branch_ids = [ba.branch_id for ba in user.branch_accesses]
+    branch_codes = [ba.branch.branch_code.lower() for ba in user.branch_accesses if ba.branch]
 
     token = create_access_token(
         data={
@@ -88,8 +89,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
         access_token=token,
         user_id=user.user_id,
         username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        phone=user.phone,
         roles=roles,
         branch_ids=branch_ids,
+        branch_codes=branch_codes,
     )
 
 

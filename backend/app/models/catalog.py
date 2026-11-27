@@ -1,1 +1,105 @@
-# Model danh mục, sản phẩm, biến thể và nhà cung cấp.
+from datetime import datetime
+from decimal import Decimal
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base, TimestampMixin
+
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    category_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("categories.category_id"), nullable=True)
+    category_name: Mapped[str] = mapped_column(String(150), unique=True, nullable=False)
+    slug: Mapped[str] = mapped_column(String(180), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    parent: Mapped["Category | None"] = relationship(
+        back_populates="children", remote_side=[category_id]
+    )
+    children: Mapped[list["Category"]] = relationship(back_populates="parent")
+    products: Mapped[list["Product"]] = relationship(back_populates="category")
+
+
+class Product(Base, TimestampMixin):
+    __tablename__ = "products"
+    __table_args__ = (
+        Index("idx_products_category_active_price", "category_id", "is_active", "base_price"),
+    )
+
+    product_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.category_id"), nullable=False)
+    product_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    base_price: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    category: Mapped["Category"] = relationship(back_populates="products")
+    variants: Mapped[list["ProductVariant"]] = relationship(
+        back_populates="product", cascade="all, delete-orphan"
+    )
+    images: Mapped[list["ProductImage"]] = relationship(
+        back_populates="product", cascade="all, delete-orphan"
+    )
+
+
+class ProductVariant(Base, TimestampMixin):
+    __tablename__ = "product_variants"
+    __table_args__ = (
+        Index("ix_product_variants_product_id", "product_id"),
+    )
+
+    variant_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), nullable=False)
+    sku: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    color: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    size: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    price: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    cost_price: Mapped[Decimal] = mapped_column(
+        Numeric(15, 2), default=Decimal("0"), nullable=False
+    )
+    stock_qty: Mapped[int] = mapped_column(Integer, default=25, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    product: Mapped["Product"] = relationship(back_populates="variants")
+    images: Mapped[list["ProductImage"]] = relationship(back_populates="variant")
+
+
+class ProductImage(Base):
+    __tablename__ = "product_images"
+    __table_args__ = (
+        Index("ix_product_images_product_id", "product_id"),
+        Index("ix_product_images_variant_id", "variant_id"),
+    )
+
+    image_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), nullable=False)
+    variant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_variants.variant_id"), nullable=True
+    )
+    image_url: Mapped[str] = mapped_column(Text, nullable=False)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    display_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    product: Mapped["Product"] = relationship(back_populates="images")
+    variant: Mapped["ProductVariant | None"] = relationship(back_populates="images")
+
+
+class Supplier(Base, TimestampMixin):
+    __tablename__ = "suppliers"
+
+    supplier_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    supplier_code: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    supplier_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

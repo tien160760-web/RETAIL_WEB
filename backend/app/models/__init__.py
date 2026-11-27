@@ -9,6 +9,13 @@ from app.models.rbac import (
     UserBranchAccess,
     AuditLog,
 )
+from app.models.catalog import (
+    Category,
+    Product,
+    ProductVariant,
+    ProductImage,
+    Supplier,
+)
 
 __all__ = [
     "Base",
@@ -21,4 +28,9 @@ __all__ = [
     "RolePermission",
     "UserBranchAccess",
     "AuditLog",
+    "Category",
+    "Product",
+    "ProductVariant",
+    "ProductImage",
+    "Supplier",
 ]

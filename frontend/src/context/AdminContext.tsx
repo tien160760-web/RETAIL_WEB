@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
   BRANCHES,
   INITIAL_CATALOG_CATEGORIES,
@@ -49,7 +49,15 @@ interface AdminContextValue {
   // Authentication (UC02)
   currentUser: StaffAccount | null;
   login: (email: string, password: string) => LoginResult;
+  loginWithBackend: (email: string, password: string) => Promise<LoginResult>;
+  registerCustomerWithBackend: (payload: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+  }) => Promise<LoginResult>;
   logout: () => void;
+  apiConnected: boolean;
 
   // Role & Branch Context
   role: UserRole;
@@ -223,6 +231,68 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [returnRequests, setReturnRequests] = useState<ReturnRequestItem[]>(
     INITIAL_RETURN_REQUESTS
   );
+  const [apiConnected, setApiConnected] = useState<boolean>(false);
+
+  const getAuthHeaders = (): Record<string, string> => {
+    const token = sessionStorage.getItem('retail_jwt_token');
+    return token
+      ? {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        }
+      : { 'Content-Type': 'application/json' };
+  };
+
+  const syncFromBackend = async () => {
+    try {
+      const healthRes = await fetch('/health');
+      if (!healthRes.ok) return;
+      setApiConnected(true);
+
+      const headers = getAuthHeaders();
+      const [catRes, prodRes] = await Promise.all([
+        fetch('/api/v1/categories', { headers }),
+        fetch('/api/v1/products', { headers }),
+      ]);
+
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        if (Array.isArray(catData) && catData.length > 0) {
+          setCategories(catData);
+        }
+      }
+
+      if (prodRes.ok) {
+        const prodData = await prodRes.json();
+        if (Array.isArray(prodData)) {
+          setProducts(prodData);
+        }
+      }
+
+      if (sessionStorage.getItem('retail_jwt_token')) {
+        const supRes = await fetch('/api/v1/suppliers', { headers });
+        if (supRes.ok) {
+          const supData = await supRes.json();
+          if (Array.isArray(supData)) setSuppliers(supData);
+        }
+
+        const staffRes = await fetch('/api/v1/staff', { headers });
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          if (Array.isArray(staffData) && staffData.length > 0) {
+            setStaffAccounts(staffData);
+          }
+        }
+      }
+    } catch {
+      // Backend offline fallback
+      setApiConnected(false);
+    }
+  };
+
+  useEffect(() => {
+    void syncFromBackend();
+  }, [currentUser]);
 
   const baseRoleConfig = useMemo(
     () => ROLES.find((r) => r.id === role) ?? ROLES[0],
@@ -270,10 +340,102 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     return { ok: true };
   };
 
+  const loginWithBackend = async (
+    email: string,
+    password: string
+  ): Promise<LoginResult> => {
+    try {
+      const res = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: email.trim(), password }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        const msg =
+          errBody?.error?.message ||
+          errBody?.detail ||
+          'Email hoặc mật khẩu không chính xác.';
+        return { ok: false, error: msg };
+      }
+
+      const data = await res.json();
+      setApiConnected(true);
+      try {
+        sessionStorage.setItem('retail_jwt_token', data.access_token);
+        sessionStorage.setItem('retail_admin_email', data.email || email.trim());
+      } catch {
+        // ignore
+      }
+
+      const primaryRole: UserRole = (data.roles?.[0] as UserRole) || 'SALES_STAFF';
+      const branchCode: string | null = data.branch_codes?.[0] || null;
+      const loggedAccount: StaffAccount = {
+        id: String(data.user_id),
+        fullName: data.full_name || data.username,
+        email: data.email || email.trim().toLowerCase(),
+        password,
+        phone: data.phone || '',
+        role: primaryRole,
+        branchId: primaryRole === 'ADMIN' ? null : branchCode ?? 'cn-hn',
+        isActive: true,
+      };
+
+      setCurrentUser(loggedAccount);
+      setRoleState(primaryRole);
+      setSelectedBranchIdState(loggedAccount.branchId ?? 'all');
+      return { ok: true };
+    } catch {
+      return login(email, password);
+    }
+  };
+
+  const registerCustomerWithBackend = async (payload: {
+    fullName: string;
+    email: string;
+    phone: string;
+    password: string;
+  }): Promise<LoginResult> => {
+    try {
+      const cleanEmail = payload.email.trim().toLowerCase();
+      const baseUsername =
+        cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') || 'user';
+      const username = `${baseUsername}_${Math.floor(100 + Math.random() * 900)}`;
+
+      const res = await fetch('/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          email: cleanEmail,
+          password: payload.password,
+          full_name: payload.fullName.trim(),
+          phone: payload.phone.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => null);
+        const msg =
+          errBody?.error?.message ||
+          errBody?.detail ||
+          'Đăng ký tài khoản thất bại.';
+        return { ok: false, error: msg };
+      }
+
+      setApiConnected(true);
+      return { ok: true };
+    } catch {
+      return { ok: true };
+    }
+  };
+
   const logout = () => {
     setCurrentUser(null);
     try {
       sessionStorage.removeItem('retail_admin_email');
+      sessionStorage.removeItem('retail_jwt_token');
     } catch {
       // ignore
     }
@@ -385,10 +547,30 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   // --- Staff CRUD (UC04) ---
   const addStaffAccount = (input: Omit<StaffAccount, 'id'>) => {
-    setStaffAccounts((prev) => [
-      { id: `staff-${Date.now()}`, ...input },
-      ...prev,
-    ]);
+    const tempId = `staff-${Date.now()}`;
+    setStaffAccounts((prev) => [{ id: tempId, ...input }, ...prev]);
+
+    void fetch('/api/v1/staff', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        full_name: input.fullName,
+        email: input.email,
+        password: input.password || '123',
+        phone: input.phone,
+        role: input.role,
+        branch_code: input.branchId,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((saved) => {
+        if (saved?.id) {
+          setStaffAccounts((prev) =>
+            prev.map((s) => (s.id === tempId ? saved : s))
+          );
+        }
+      })
+      .catch(() => {});
   };
 
   const updateStaffAccount = (
@@ -398,6 +580,22 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setStaffAccounts((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...input } : s))
     );
+
+    if (/^\d+$/.test(id)) {
+      void fetch(`/api/v1/staff/${id}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          full_name: input.fullName,
+          email: input.email,
+          password: input.password,
+          phone: input.phone,
+          role: input.role,
+          branch_code: input.branchId,
+          is_active: input.isActive,
+        }),
+      }).catch(() => {});
+    }
   };
 
   const toggleStaffStatus = (id: string): { ok: boolean; error?: string } => {
@@ -414,16 +612,49 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
         };
       }
     }
+    const nextStatus = !target.isActive;
     setStaffAccounts((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s))
+      prev.map((s) => (s.id === id ? { ...s, isActive: nextStatus } : s))
     );
+
+    if (/^\d+$/.test(id)) {
+      void fetch(`/api/v1/staff/${id}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ is_active: nextStatus }),
+      }).catch(() => {});
+    }
     return { ok: true };
   };
 
   // --- Categories & Products CRUD (UC06) ---
   const addCategory = (input: Omit<CatalogCategory, 'id'>) => {
-    const newItem: CatalogCategory = { id: `cat-${Date.now()}`, ...input };
+    const tempSlug = input.name
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/gi, 'd')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || `cat-${Date.now()}`;
+
+    const newItem: CatalogCategory = { id: tempSlug, ...input };
     setCategories((prev) => [newItem, ...prev]);
+
+    void fetch('/api/v1/categories', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(input),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((saved) => {
+        if (saved?.id) {
+          setCategories((prev) =>
+            prev.map((c) => (c.id === tempSlug ? saved : c))
+          );
+        }
+      })
+      .catch(() => {});
+
     return newItem;
   };
 
@@ -431,18 +662,44 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setCategories((prev) =>
       prev.map((c) => (c.id === id ? { ...c, ...input } : c))
     );
+    void fetch(`/api/v1/categories/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(input),
+    }).catch(() => {});
   };
 
   const deleteCategory = (id: string): boolean => {
     const hasProducts = products.some((p) => p.categoryId === id);
     if (hasProducts) return false;
     setCategories((prev) => prev.filter((c) => c.id !== id));
+    void fetch(`/api/v1/categories/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    }).catch(() => {});
     return true;
   };
 
   const addProduct = (input: Omit<CatalogProduct, 'id'>) => {
-    const newProduct: CatalogProduct = { id: `prod-${Date.now()}`, ...input };
+    const tempId = `prod-${Date.now()}`;
+    const newProduct: CatalogProduct = { id: tempId, ...input };
     setProducts((prev) => [newProduct, ...prev]);
+
+    void fetch('/api/v1/products', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(input),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((saved) => {
+        if (saved?.id) {
+          setProducts((prev) =>
+            prev.map((p) => (p.id === tempId ? saved : p))
+          );
+        }
+      })
+      .catch(() => {});
+
     return newProduct;
   };
 
@@ -450,10 +707,33 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, ...input } : p))
     );
+
+    if (/^\d+$/.test(id)) {
+      void fetch(`/api/v1/products/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(input),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((saved) => {
+          if (saved?.id) {
+            setProducts((prev) =>
+              prev.map((p) => (p.id === id ? saved : p))
+            );
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   const deleteProduct = (id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
+    if (/^\d+$/.test(id)) {
+      void fetch(`/api/v1/products/${id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      }).catch(() => {});
+    }
   };
 
   // --- Vouchers CRUD (UC20) ---
@@ -481,8 +761,25 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   // --- Suppliers CRUD (UC07) ---
   const addSupplier = (input: Omit<SupplierItem, 'id'>) => {
-    const newSup: SupplierItem = { id: `sup-${Date.now()}`, ...input };
+    const tempId = `sup-${Date.now()}`;
+    const newSup: SupplierItem = { id: tempId, ...input };
     setSuppliers((prev) => [newSup, ...prev]);
+
+    void fetch('/api/v1/suppliers', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(input),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((saved) => {
+        if (saved?.id) {
+          setSuppliers((prev) =>
+            prev.map((s) => (s.id === tempId ? saved : s))
+          );
+        }
+      })
+      .catch(() => {});
+
     return newSup;
   };
 
@@ -490,12 +787,27 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setSuppliers((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...input } : s))
     );
+
+    if (/^\d+$/.test(id)) {
+      void fetch(`/api/v1/suppliers/${id}`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(input),
+      }).catch(() => {});
+    }
   };
 
   const toggleSupplierStatus = (id: string) => {
     setSuppliers((prev) =>
       prev.map((s) => (s.id === id ? { ...s, isActive: !s.isActive } : s))
     );
+
+    if (/^\d+$/.test(id)) {
+      void fetch(`/api/v1/suppliers/${id}/toggle`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+      }).catch(() => {});
+    }
   };
 
   // --- Purchase Orders (UC08) & Receipts (UC09) ---
@@ -999,7 +1311,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const value: AdminContextValue = {
     currentUser,
     login,
+    loginWithBackend,
+    registerCustomerWithBackend,
     logout,
+    apiConnected,
     role,
     roleConfig,
     setRole,

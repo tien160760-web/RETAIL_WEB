@@ -30,7 +30,7 @@ export function Topbar({
   onToggleSidebar,
 }: TopbarProps) {
   const navigate = useNavigate();
-  const { currentUser, logout } = useAdminContext();
+  const { currentUser, logout, apiConnected } = useAdminContext();
 
   const roleLabel =
     ROLES.find((r) => r.id === currentUser?.role)?.shortLabel ?? 'Quản trị viên';
@@ -59,8 +59,24 @@ export function Topbar({
             <Store className="w-3.5 h-3.5" />
           </span>
           <span>RETAIL_WEB</span>
-          <span className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded-[5px] bg-[#F4F4F5] border border-[#E4E4E7] text-[10.5px] font-mono font-semibold text-[#52525B]">
-            v1.0
+          <span
+            title={
+              apiConnected
+                ? 'Đã kết nối trực tiếp với FastAPI Backend (/api/v1)'
+                : 'Đang chạy chế độ Local'
+            }
+            className={`hidden md:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-[10.5px] font-semibold ${
+              apiConnected
+                ? 'bg-[#F0FDF4] border-[#BBF7D0] text-[#15803D]'
+                : 'bg-[#F4F4F5] border-[#E4E4E7] text-[#52525B]'
+            }`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                apiConnected ? 'bg-[#16A34A]' : 'bg-[#71717A]'
+              }`}
+            />
+            <span>{apiConnected ? 'API Connected' : 'Local Mode'}</span>
           </span>
         </div>
 

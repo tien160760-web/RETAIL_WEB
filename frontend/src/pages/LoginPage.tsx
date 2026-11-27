@@ -44,9 +44,11 @@ const DEMO_ACCOUNTS = [
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { login, staffAccounts } = useAdminContext();
+  const { loginWithBackend, registerCustomerWithBackend, staffAccounts } =
+    useAdminContext();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Login form state
   const [email, setEmail] = useState('admin@retail.vn');
@@ -59,12 +61,11 @@ export function LoginPage() {
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
-  const [registeredCustomerEmails, setRegisteredCustomerEmails] = useState<string[]>([]);
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -74,7 +75,10 @@ export function LoginPage() {
       return;
     }
 
-    const res = login(email, password);
+    setIsSubmitting(true);
+    const res = await loginWithBackend(email, password);
+    setIsSubmitting(false);
+
     if (!res.ok) {
       setErrorMsg(res.error ?? 'Đăng nhập thất bại.');
       return;
@@ -90,7 +94,7 @@ export function LoginPage() {
     }
   };
 
-  const handleRegisterCustomer = (e: React.FormEvent) => {
+  const handleRegisterCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -114,17 +118,20 @@ export function LoginPage() {
       return;
     }
 
-    const existsInStaff = staffAccounts.some(
-      (s) => s.email.toLowerCase() === cleanEmail
-    );
-    const existsInCustomers = registeredCustomerEmails.includes(cleanEmail);
+    setIsSubmitting(true);
+    const res = await registerCustomerWithBackend({
+      fullName: cleanName,
+      email: cleanEmail,
+      phone: cleanPhone,
+      password: regPassword,
+    });
+    setIsSubmitting(false);
 
-    if (existsInStaff || existsInCustomers) {
-      setErrorMsg('Email đã được sử dụng trong hệ thống.');
+    if (!res.ok) {
+      setErrorMsg(res.error ?? 'Đăng ký thất bại.');
       return;
     }
 
-    setRegisteredCustomerEmails((prev) => [...prev, cleanEmail]);
     setRegName('');
     setRegEmail('');
     setRegPhone('');
@@ -132,7 +139,7 @@ export function LoginPage() {
     setRegConfirmPassword('');
     setMode('login');
     setSuccessMsg(
-      `Đăng ký thành công tài khoản khách hàng "${cleanName}" (${cleanEmail}).`
+      `Đăng ký thành công tài khoản khách hàng "${cleanName}" (${cleanEmail}) trên hệ thống Backend API.`
     );
   };
 
@@ -264,9 +271,10 @@ export function LoginPage() {
 
               <button
                 type="submit"
-                className="w-full h-[38px] rounded-[8px] bg-[#18181B] hover:bg-[#27272A] text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                disabled={isSubmitting}
+                className="w-full h-[38px] rounded-[8px] bg-[#18181B] hover:bg-[#27272A] disabled:opacity-60 text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
               >
-                <span>Đăng nhập</span>
+                <span>{isSubmitting ? 'Đang xác thực API...' : 'Đăng nhập'}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
