@@ -23,6 +23,7 @@ const ROLE_BADGE_STYLES: Record<UserRole, string> = {
   BRANCH_MANAGER: 'bg-[#F3E8FF] text-[#6D28D9] border-[#DDD6FE]',
   WAREHOUSE_STAFF: 'bg-[#FEF3C7] text-[#B45309] border-[#FDE68A]',
   SALES_STAFF: 'bg-[#E0F2FE] text-[#0369A1] border-[#BAE6FD]',
+  CUSTOMER: 'bg-[#F4F4F5] text-[#52525B] border-[#E4E4E7]',
 };
 
 const AVATAR_STYLES: Record<UserRole, string> = {
@@ -30,6 +31,7 @@ const AVATAR_STYLES: Record<UserRole, string> = {
   BRANCH_MANAGER: 'bg-[#6D28D9] text-white',
   WAREHOUSE_STAFF: 'bg-[#D97706] text-white',
   SALES_STAFF: 'bg-[#0284C7] text-white',
+  CUSTOMER: 'bg-[#71717A] text-white',
 };
 
 function getInitials(name: string) {
