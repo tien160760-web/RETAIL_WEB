@@ -1,4 +1,9 @@
-export type UserRole = 'ADMIN' | 'BRANCH_MANAGER' | 'WAREHOUSE_STAFF' | 'SALES_STAFF';
+export type UserRole =
+  | 'ADMIN'
+  | 'BRANCH_MANAGER'
+  | 'WAREHOUSE_STAFF'
+  | 'SALES_STAFF'
+  | 'CUSTOMER';
 
 export type BranchId = 'all' | 'cn-hn' | 'cn-dn' | 'cn-hcm' | (string & {});
 

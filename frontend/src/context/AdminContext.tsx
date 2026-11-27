@@ -1,5 +1,12 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import {
+  apiRequest,
+  buildAuthHeaders,
+  getStoredToken,
+  onApiAuthError,
+  setStoredToken,
+} from '../config/api';
+import {
   BRANCHES,
   INITIAL_CATALOG_CATEGORIES,
   INITIAL_CATALOG_PRODUCTS,
@@ -58,6 +65,10 @@ interface AdminContextValue {
   }) => Promise<LoginResult>;
   logout: () => void;
   apiConnected: boolean;
+  isAuthChecking: boolean;
+  authAlert: { status: 401 | 403; message: string } | null;
+  clearAuthAlert: () => void;
+  verifyCurrentSession: () => Promise<void>;
 
   // Role & Branch Context
   role: UserRole;
@@ -232,60 +243,127 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     INITIAL_RETURN_REQUESTS
   );
   const [apiConnected, setApiConnected] = useState<boolean>(false);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(() =>
+    Boolean(getStoredToken())
+  );
+  const [authAlert, setAuthAlert] = useState<{
+    status: 401 | 403;
+    message: string;
+  } | null>(null);
 
-  const getAuthHeaders = (): Record<string, string> => {
-    const token = sessionStorage.getItem('retail_jwt_token');
-    return token
-      ? {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+  const clearAuthAlert = () => setAuthAlert(null);
+
+  const getAuthHeaders = (): Record<string, string> => buildAuthHeaders();
+
+  // Lắng nghe phản hồi 401 / 403 tập trung từ apiRequest (Mục 2.1 Issue #14)
+  useEffect(() => {
+    onApiAuthError((info) => {
+      setAuthAlert(info);
+      if (info.status === 401) {
+        setCurrentUser(null);
+        setStoredToken(null, null);
+      }
+    });
+    return () => onApiAuthError(null);
+  }, []);
+
+  /**
+   * Kiểm tra trạng thái đăng nhập và vai trò trực tiếp từ Backend (/api/v1/auth/me)
+   * khi mở trang quản trị hoặc nhập URL trực tiếp (Mục 2.1 Issue #14)
+   */
+  const verifyCurrentSession = async () => {
+    const token = getStoredToken();
+    if (!token) {
+      setIsAuthChecking(false);
+      return;
+    }
+
+    setIsAuthChecking(true);
+    try {
+      const meRes = await apiRequest<{
+        user_id: number;
+        username: string;
+        email: string;
+        full_name: string;
+        phone: string | null;
+        is_active: boolean;
+        roles: UserRole[];
+        branch_codes?: string[];
+      }>('/auth/me');
+
+      if (!meRes.ok) {
+        if (meRes.status === 401) {
+          setCurrentUser(null);
+          setStoredToken(null, null);
         }
-      : { 'Content-Type': 'application/json' };
+        return;
+      }
+
+      setApiConnected(true);
+      const profile = meRes.data;
+      const primaryRole: UserRole = profile.roles?.[0] ?? 'CUSTOMER';
+      const branchCode = profile.branch_codes?.[0] ?? null;
+
+      const verifiedUser: StaffAccount = {
+        id: String(profile.user_id),
+        fullName: profile.full_name || profile.username,
+        email: profile.email,
+        password: '123',
+        phone: profile.phone || '',
+        role: primaryRole,
+        branchId: primaryRole === 'ADMIN' ? null : branchCode ?? 'cn-hn',
+        isActive: profile.is_active,
+      };
+
+      setCurrentUser(verifiedUser);
+      setRoleState(primaryRole);
+      setSelectedBranchIdState(verifiedUser.branchId ?? 'all');
+    } catch {
+      // keep existing session if backend unreachable
+    } finally {
+      setIsAuthChecking(false);
+    }
   };
+
+  useEffect(() => {
+    void verifyCurrentSession();
+  }, []);
 
   const syncFromBackend = async () => {
     try {
-      const healthRes = await fetch('/health');
+      const healthRes = await apiRequest('/health', {}, true);
       if (!healthRes.ok) return;
       setApiConnected(true);
 
-      const headers = getAuthHeaders();
       const [catRes, prodRes] = await Promise.all([
-        fetch('/api/v1/categories', { headers }),
-        fetch('/api/v1/products', { headers }),
+        apiRequest<CatalogCategory[]>('/categories', {}, true),
+        apiRequest<CatalogProduct[]>('/products', {}, true),
       ]);
 
-      if (catRes.ok) {
-        const catData = await catRes.json();
-        if (Array.isArray(catData) && catData.length > 0) {
-          setCategories(catData);
-        }
+      if (catRes.ok && Array.isArray(catRes.data) && catRes.data.length > 0) {
+        setCategories(catRes.data);
       }
 
-      if (prodRes.ok) {
-        const prodData = await prodRes.json();
-        if (Array.isArray(prodData)) {
-          setProducts(prodData);
-        }
+      if (prodRes.ok && Array.isArray(prodRes.data)) {
+        setProducts(prodRes.data);
       }
 
-      if (sessionStorage.getItem('retail_jwt_token')) {
-        const supRes = await fetch('/api/v1/suppliers', { headers });
-        if (supRes.ok) {
-          const supData = await supRes.json();
-          if (Array.isArray(supData)) setSuppliers(supData);
+      if (getStoredToken()) {
+        const supRes = await apiRequest<SupplierItem[]>('/suppliers', {}, true);
+        if (supRes.ok && Array.isArray(supRes.data)) {
+          setSuppliers(supRes.data);
         }
 
-        const staffRes = await fetch('/api/v1/staff', { headers });
-        if (staffRes.ok) {
-          const staffData = await staffRes.json();
-          if (Array.isArray(staffData) && staffData.length > 0) {
-            setStaffAccounts(staffData);
-          }
+        const staffRes = await apiRequest<StaffAccount[]>('/staff', {}, true);
+        if (
+          staffRes.ok &&
+          Array.isArray(staffRes.data) &&
+          staffRes.data.length > 0
+        ) {
+          setStaffAccounts(staffRes.data);
         }
       }
     } catch {
-      // Backend offline fallback
       setApiConnected(false);
     }
   };
@@ -344,32 +422,35 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string
   ): Promise<LoginResult> => {
+    clearAuthAlert();
     try {
-      const res = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: email.trim(), password }),
-      });
+      const res = await apiRequest<{
+        access_token: string;
+        user_id: number;
+        username: string;
+        email?: string;
+        full_name?: string;
+        phone?: string;
+        roles: UserRole[];
+        branch_codes?: string[];
+      }>(
+        '/auth/login',
+        {
+          method: 'POST',
+          body: JSON.stringify({ username: email.trim(), password }),
+        },
+        true
+      );
 
       if (!res.ok) {
-        const errBody = await res.json().catch(() => null);
-        const msg =
-          errBody?.error?.message ||
-          errBody?.detail ||
-          'Email hoặc mật khẩu không chính xác.';
-        return { ok: false, error: msg };
+        return { ok: false, error: res.error.message };
       }
 
-      const data = await res.json();
+      const data = res.data;
       setApiConnected(true);
-      try {
-        sessionStorage.setItem('retail_jwt_token', data.access_token);
-        sessionStorage.setItem('retail_admin_email', data.email || email.trim());
-      } catch {
-        // ignore
-      }
+      setStoredToken(data.access_token, data.email || email.trim());
 
-      const primaryRole: UserRole = (data.roles?.[0] as UserRole) || 'SALES_STAFF';
+      const primaryRole: UserRole = data.roles?.[0] ?? 'CUSTOMER';
       const branchCode: string | null = data.branch_codes?.[0] || null;
       const loggedAccount: StaffAccount = {
         id: String(data.user_id),
@@ -397,31 +478,30 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     phone: string;
     password: string;
   }): Promise<LoginResult> => {
+    clearAuthAlert();
     try {
       const cleanEmail = payload.email.trim().toLowerCase();
       const baseUsername =
         cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') || 'user';
       const username = `${baseUsername}_${Math.floor(100 + Math.random() * 900)}`;
 
-      const res = await fetch('/api/v1/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username,
-          email: cleanEmail,
-          password: payload.password,
-          full_name: payload.fullName.trim(),
-          phone: payload.phone.trim(),
-        }),
-      });
+      const res = await apiRequest(
+        '/auth/register',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            username,
+            email: cleanEmail,
+            password: payload.password,
+            full_name: payload.fullName.trim(),
+            phone: payload.phone.trim(),
+          }),
+        },
+        true
+      );
 
       if (!res.ok) {
-        const errBody = await res.json().catch(() => null);
-        const msg =
-          errBody?.error?.message ||
-          errBody?.detail ||
-          'Đăng ký tài khoản thất bại.';
-        return { ok: false, error: msg };
+        return { ok: false, error: res.error.message };
       }
 
       setApiConnected(true);
@@ -433,12 +513,8 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   const logout = () => {
     setCurrentUser(null);
-    try {
-      sessionStorage.removeItem('retail_admin_email');
-      sessionStorage.removeItem('retail_jwt_token');
-    } catch {
-      // ignore
-    }
+    clearAuthAlert();
+    setStoredToken(null, null);
   };
 
   const setRole = (nextRole: UserRole) => {
@@ -1315,6 +1391,10 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     registerCustomerWithBackend,
     logout,
     apiConnected,
+    isAuthChecking,
+    authAlert,
+    clearAuthAlert,
+    verifyCurrentSession,
     role,
     roleConfig,
     setRole,

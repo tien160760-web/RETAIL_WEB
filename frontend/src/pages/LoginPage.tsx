@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   ArrowRight,
@@ -44,8 +44,14 @@ const DEMO_ACCOUNTS = [
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { loginWithBackend, registerCustomerWithBackend, staffAccounts } =
-    useAdminContext();
+  const location = useLocation();
+  const {
+    loginWithBackend,
+    registerCustomerWithBackend,
+    staffAccounts,
+    authAlert,
+    clearAuthAlert,
+  } = useAdminContext();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,6 +87,12 @@ export function LoginPage() {
 
     if (!res.ok) {
       setErrorMsg(res.error ?? 'Đăng nhập thất bại.');
+      return;
+    }
+
+    const fromPath = (location.state as { from?: string } | null)?.from;
+    if (fromPath && fromPath !== '/login') {
+      navigate(fromPath, { replace: true });
       return;
     }
 
@@ -201,6 +213,25 @@ export function LoginPage() {
         </div>
 
         <div className="p-6">
+          {/* 401 / 403 Redirect Notice */}
+          {authAlert && (
+            <div className="mb-4 p-3 rounded-[8px] bg-[#FEF2F2] border border-[#FECACA] flex items-start justify-between gap-2 text-[12.5px] text-[#991B1B]">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0 mt-0.5" />
+                <span>
+                  <strong>HTTP {authAlert.status}:</strong> {authAlert.message}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={clearAuthAlert}
+                className="text-[11px] font-bold underline cursor-pointer shrink-0"
+              >
+                Đóng
+              </button>
+            </div>
+          )}
+
           {/* Alerts */}
           {errorMsg && (
             <div className="mb-4 p-3 rounded-[8px] bg-[#FEF2F2] border border-[#FECACA] flex items-start gap-2.5 text-[12.5px] text-[#991B1B]">

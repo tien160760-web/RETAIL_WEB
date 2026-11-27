@@ -1,4 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertCircle,
   CheckCircle2,
@@ -90,7 +91,13 @@ function toSkuSlug(str: string) {
     .toUpperCase();
 }
 
-export function CatalogPage() {
+export function CatalogPage({
+  routeAction,
+}: {
+  routeAction?: 'create' | 'edit';
+} = {}) {
+  const navigate = useNavigate();
+  const params = useParams<{ id?: string }>();
   const {
     currentUser,
     categories,
@@ -301,6 +308,26 @@ export function CatalogPage() {
     setFormErr(null);
     setIsModalOpen(true);
   };
+
+  const closeProductModal = () => {
+    setIsModalOpen(false);
+    if (routeAction) {
+      navigate('/products', { replace: true });
+    }
+  };
+
+  // Mở form Thêm hoặc Sửa tự động khi người dùng nhập trực tiếp URL /products/new hoặc /products/:id/edit
+  useEffect(() => {
+    if (!canManageCatalog) return;
+    if (routeAction === 'create') {
+      openCreateModal();
+    } else if (routeAction === 'edit' && params.id) {
+      const target = products.find((p) => p.id === params.id);
+      if (target) {
+        openEditModal(target);
+      }
+    }
+  }, [routeAction, params.id, products.length, canManageCatalog]);
 
   // Multi-file upload handler
   const handleFilesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -559,7 +586,7 @@ export function CatalogPage() {
       );
     }
 
-    setIsModalOpen(false);
+    closeProductModal();
   };
 
   // Category CRUD handlers
@@ -1416,7 +1443,7 @@ export function CatalogPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsModalOpen(false)}
+                onClick={closeProductModal}
                 className="w-8 h-8 rounded-[8px] hover:bg-[#F4F4F5] flex items-center justify-center text-[#71717A] hover:text-[#09090B] cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -1934,7 +1961,7 @@ export function CatalogPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={closeProductModal}
                     className="h-[38px] px-4 rounded-[8px] border border-[#E4E4E7] bg-white hover:bg-[#F4F4F5] text-[13px] font-medium text-[#18181B] cursor-pointer"
                   >
                     Hủy bỏ
