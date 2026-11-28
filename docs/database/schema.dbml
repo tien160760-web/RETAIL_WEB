@@ -79,6 +79,10 @@ Table customer_addresses {
   is_default boolean [not null, default: false]
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    user_id [name: 'ix_customer_addresses_user_id']
+  }
 }
 
 // =========================================================================
@@ -91,7 +95,7 @@ Table categories {
   category_name varchar(150) [unique, not null, note: 'UC06: Ten danh muc khong trung']
   slug varchar(180) [unique, not null]
   description text
-  is_active boolean [not null, default: true]
+  is_active boolean [not null, default: true, note: 'Danh muc cong khai khi true']
   created_at timestamptz [not null, default: `now()`]
 }
 
@@ -101,36 +105,45 @@ Table products {
   product_name varchar(255) [not null, note: 'UC05, UC06']
   slug varchar(255) [unique, not null]
   description text
-  base_price decimal(15,2) [not null]
-  is_active boolean [not null, default: true]
+  base_price decimal(15,2) [not null, note: 'Gia tu, bang gia bien the thap nhat ke ca bien the an']
+  is_active boolean [not null, default: true, note: 'Cong khai tren storefront khi true']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
 
   indexes {
     (category_id, is_active, base_price) [name: 'idx_products_category_active_price']
   }
+
+  checks {
+    `base_price >= 0` [name: 'chk_products_base_price_non_negative']
+  }
 }
 
 Table product_variants {
   variant_id integer [pk, increment]
-  product_id integer [ref: > products.product_id, not null]
+  product_id integer [not null]
   sku varchar(100) [unique, not null, note: 'UC06: Ma SKU duy nhat']
   color varchar(50) [note: 'UC05, UC06: Mau sac']
   size varchar(50) [note: 'UC05, UC06: Kich co']
-  price decimal(15,2) [not null, note: 'UC06: Gia ban theo bien the']
-  cost_price decimal(15,2) [not null, default: 0, note: 'Gia von hien tai']
-  is_active boolean [not null, default: true]
+  price decimal(15,2) [not null, note: 'Gia ban thuc te; Backend cap nhat base_price ke ca bien the an']
+  cost_price decimal(15,2) [not null, default: 0, note: 'Gia von hien tai; co the cao hon gia ban']
+  is_active boolean [not null, default: true, note: 'Bien the mua duoc khi true']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
 
   indexes {
     product_id [name: 'ix_product_variants_product_id']
   }
+
+  checks {
+    `price >= 0` [name: 'chk_product_variants_price_non_negative']
+    `cost_price >= 0` [name: 'chk_product_variants_cost_price_non_negative']
+  }
 }
 
 Table product_images {
   image_id integer [pk, increment]
-  product_id integer [ref: > products.product_id, not null]
+  product_id integer [not null]
   variant_id integer [ref: > product_variants.variant_id, note: 'UC06: Anh gan voi bien the cu the (neu co)']
   image_url text [not null]
   is_primary boolean [not null, default: false]
@@ -560,6 +573,9 @@ Table refunds {
   refunded_at timestamptz
   created_at timestamptz [not null, default: `now()`]
 }
+
+Ref product_variants_product_id_fkey: product_variants.product_id > products.product_id [delete: restrict]
+Ref product_images_product_id_fkey: product_images.product_id > products.product_id [delete: cascade]
 
 // =========================================================================
 // GOM NHÓM BẢNG TRÊN SƠ ĐỒ ERD (TABLE GROUPS)
