@@ -12,7 +12,7 @@
 
 ## 1. Tổng quan & Chiến lược phân tầng Schema
 
-Để giải quyết bài toán vận hành chuỗi bán lẻ đa chi nhánh theo tài liệu **Đặc tả 26 Use Case (UC01–UC26)** và tài liệu **Phạm vi dự án M1**, cơ sở dữ liệu được chuẩn hóa thành **33 bảng** chia thành 2 mức triển khai rõ rệt:
+Để giải quyết bài toán vận hành chuỗi bán lẻ đa chi nhánh theo tài liệu **Đặc tả 26 Use Case (UC01–UC26)** và tài liệu **Phạm vi dự án M1**, cơ sở dữ liệu được chuẩn hóa thành **36 bảng** chia thành 2 mức triển khai rõ rệt:
 
 1. **Core Schema:**
    * Tập trung phục vụ trọn vẹn **3 luồng nghiệp vụ trọng tâm**:
