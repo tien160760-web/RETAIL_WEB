@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.services.auth_service import AuthService
 
 from app.core.database import get_db
 from app.core.security import hash_password, verify_password, create_access_token
@@ -31,21 +30,37 @@ def _build_user_profile(user: User) -> UserProfileResponse:
         created_at=user.created_at,
     )
 
-@router.post(
-    "/register", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED
-)
-def register_customer(payload: RegisterRequest, db: Session = Depends(get_db)):
-    service = AuthService(db)
 
-    user = service.register_customer(
+@router.post("/register", response_model=UserProfileResponse, status_code=status.HTTP_201_CREATED)
+def register_customer(payload: RegisterRequest, db: Session = Depends(get_db)):
+    existing = (
+        db.query(User)
+        .filter((User.username == payload.username) | (User.email == payload.email))
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username hoac email da ton tai",
+        )
+
+    user = User(
         username=payload.username,
         email=payload.email,
-        password=payload.password,
+        password_hash=hash_password(payload.password),
         full_name=payload.full_name,
         phone=payload.phone,
-        password_hash_func=hash_password,
+        is_active=True,
     )
+    db.add(user)
+    db.flush()
 
+    customer_role = db.query(Role).filter(Role.role_name == "CUSTOMER").first()
+    if customer_role:
+        db.add(UserRole(user_id=user.user_id, role_id=customer_role.role_id))
+
+    db.commit()
+    db.refresh(user)
     return _build_user_profile(user)
 
 
