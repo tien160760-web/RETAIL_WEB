@@ -2,7 +2,18 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
@@ -46,6 +57,9 @@ class Product(Base, TimestampMixin):
     __tablename__ = "products"
     __table_args__ = (
         Index("idx_products_category_active_price", "category_id", "is_active", "base_price"),
+        CheckConstraint(
+            "base_price >= 0", name="chk_products_base_price_non_negative"
+        ),
     )
 
     product_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -59,10 +73,10 @@ class Product(Base, TimestampMixin):
     )
     category: Mapped["Category"] = relationship(back_populates="products")
     variants: Mapped[list["ProductVariant"]] = relationship(
-        back_populates="product", cascade="all, delete-orphan"
+        back_populates="product", passive_deletes="all"
     )
     images: Mapped[list["ProductImage"]] = relationship(
-        back_populates="product", cascade="all, delete-orphan"
+        back_populates="product", cascade="all, delete-orphan", passive_deletes=True
     )
 
 
@@ -70,10 +84,16 @@ class ProductVariant(Base, TimestampMixin):
     __tablename__ = "product_variants"
     __table_args__ = (
         Index("ix_product_variants_product_id", "product_id"),
+        CheckConstraint("price >= 0", name="chk_product_variants_price_non_negative"),
+        CheckConstraint(
+            "cost_price >= 0", name="chk_product_variants_cost_price_non_negative"
+        ),
     )
 
     variant_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.product_id", ondelete="RESTRICT"), nullable=False
+    )
     sku: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     color: Mapped[str | None] = mapped_column(String(50), nullable=True)
     size: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -104,7 +124,9 @@ class ProductImage(Base):
     )
 
     image_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    product_id: Mapped[int] = mapped_column(ForeignKey("products.product_id"), nullable=False)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.product_id", ondelete="CASCADE"), nullable=False
+    )
     variant_id: Mapped[int | None] = mapped_column(
         ForeignKey("product_variants.variant_id"), nullable=True
     )

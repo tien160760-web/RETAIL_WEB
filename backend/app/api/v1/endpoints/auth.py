@@ -15,7 +15,6 @@ from app.schemas.auth_schema import (
 
 router = APIRouter(prefix="/auth", tags=["Authentication (UC01, UC02, UC03)"])
 
-
 def _build_user_profile(user: User) -> UserProfileResponse:
     roles = [ur.role.role_name for ur in user.user_roles]
     branch_ids = [ba.branch_id for ba in user.branch_accesses]

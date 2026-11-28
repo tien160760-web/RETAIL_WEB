@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Text, func
+from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, Index, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
@@ -147,6 +147,7 @@ class UserBranchAccess(Base):
 
 class CustomerAddress(Base, TimestampMixin):
     __tablename__ = "customer_addresses"
+    __table_args__ = (Index("ix_customer_addresses_user_id", "user_id"),)
 
     address_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
