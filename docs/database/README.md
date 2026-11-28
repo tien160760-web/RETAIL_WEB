@@ -12,7 +12,7 @@
 
 ## 1. Tổng quan & Chiến lược phân tầng Schema
 
-Để giải quyết bài toán vận hành chuỗi bán lẻ đa chi nhánh theo tài liệu **Đặc tả 26 Use Case (UC01–UC26)** và tài liệu **Phạm vi dự án M1**, cơ sở dữ liệu được chuẩn hóa thành **33 bảng** chia thành 2 mức triển khai rõ rệt:
+Để giải quyết bài toán vận hành chuỗi bán lẻ đa chi nhánh theo tài liệu **Đặc tả 26 Use Case (UC01–UC26)** và tài liệu **Phạm vi dự án M1**, cơ sở dữ liệu được chuẩn hóa thành **36 bảng** chia thành 2 mức triển khai rõ rệt:
 
 1. **Core Schema:**
    * Tập trung phục vụ trọn vẹn **3 luồng nghiệp vụ trọng tâm**:
@@ -214,9 +214,123 @@ Cơ sở dữ liệu thiết lập các Composite Index để đáp ứng kiểm
 
 ---
 
-## 6. Kế hoạch Bộ dữ liệu Lớn (Benchmark Dataset Plan)
+## 6. Khởi tạo PostgreSQL phát triển và dữ liệu mẫu
 
-Để đáp ứng tiêu chí kiểm thử hiệu năng với bộ dữ liệu lớn, script sinh dữ liệu (`scripts/seed_large_data.py`) sẽ phân bổ số lượng bản ghi như sau:
+### Chuỗi migration hiện tại
+
+Các revision tạo thành một chuỗi duy nhất:
+
+| Revision | Nội dung |
+|---|---|
+| `001` | Auth/RBAC cơ bản, chi nhánh và quyền |
+| `002` | Tạo `customer_addresses`, thêm quản lý chi nhánh; xóa `audit_logs` |
+| `003` | Điều chỉnh default và index cho Auth/RBAC |
+| `004` | Danh mục, sản phẩm, biến thể, hình ảnh, nhà cung cấp |
+| `005` | Tồn kho và nhập hàng |
+| `006` | Giỏ hàng, đơn hàng, thanh toán |
+| `007` | Khuyến mãi, đánh giá, đổi trả |
+| `008` | Check/index bổ sung và reporting views |
+| `009` | Giá sản phẩm và biến thể không âm |
+| `010` | Khôi phục index địa chỉ và áp dụng chính sách FK catalog |
+
+`customer_addresses` chỉ được tạo ở revision `002`; các revision `003` trở đi không tạo lại bảng này. Revision `004` là điểm bắt đầu phần catalog, phụ thuộc Auth/RBAC tại `003`.
+Revision `003` bỏ index `customer_addresses.user_id`; revision `010` khôi phục index phục vụ truy vấn theo khách hàng. Metadata dùng naming convention tương thích tên mặc định PostgreSQL cho PK, UNIQUE, CHECK (giữ tên constraint đã khai báo), FK và index, để autogenerate render thao tác drop/recreate có tên.
+
+Trước khi nâng cấp database đang có dữ liệu, kiểm tra revision hiện tại bằng `python -m alembic current` và tạo backup. Từ `001`, các migration giữ nguyên bảng `users`, `roles`, `permissions` và các bảng gán quyền; tuy nhiên `002` **xóa bảng `audit_logs`**, và yêu cầu `branches.address` không NULL mà không backfill. Database cũ có chi nhánh thiếu địa chỉ phải được xử lý trước khi upgrade. Tên FK quản lý chi nhánh trong `002` đã được sửa để downgrade dùng đúng tên PostgreSQL. Downgrade `002` tạo lại `audit_logs` rỗng, không khôi phục log đã xóa. Không dùng `stamp` để bỏ qua migration chưa được xác minh.
+
+### Tạo database mới
+
+1. Tạo database PostgreSQL 16+ rỗng (ví dụ `retail_web_dev`) và cấu hình `DATABASE_URL` trong `backend/.env` theo `backend/.env.example`.
+2. Từ thư mục `backend`, cài dependencies và migrate:
+
+   ```powershell
+   python -m pip install -r requirements.txt
+   python -m alembic upgrade head
+   python -m alembic current
+   ```
+
+Không chạy lệnh này trỏ vào production. Để nâng cấp database phát triển hiện có, cần xác nhận revision và rà soát điều kiện nêu trên trước.
+
+#### Quy ước đã thống nhất: trạng thái công khai và giá
+
+- **Trạng thái công khai:** `products.is_active = TRUE` nghĩa là sản phẩm công khai trên storefront; `FALSE` là ẩn. Điều kiện hiển thị cho khách: `categories.is_active AND products.is_active`; biến thể chỉ mua được khi thêm `product_variants.is_active`. Hết tồn kho không làm ẩn sản phẩm. Không xóa cứng; ngừng bán bằng `is_active = FALSE`.
+- **Giá bán:** `product_variants.price` là giá bán thực tế, dùng cho giỏ hàng và đơn hàng (snapshot vào `order_items.unit_price`).
+- **Giá cấp sản phẩm:** `products.base_price` là giá “từ”, bằng giá thấp nhất của **tất cả** biến thể thuộc sản phẩm, kể cả biến thể đang ẩn (`is_active = FALSE`), và không lớn hơn giá của bất kỳ biến thể nào. Cờ `is_active` chỉ quyết định khả năng mua, không loại giá biến thể khỏi cách tính `base_price`. Quy tắc này do Backend kiểm tra; PostgreSQL không thể dùng `CHECK` giữa hai bảng. Tạo/sửa giá hoặc đổi trạng thái biến thể phải đi qua [catalog service](../../backend/app/services/catalog.py), nơi khóa sản phẩm và đồng bộ lại `base_price`. Seed cũng gọi service để đồng bộ sau khi tạo/tìm biến thể. Không xóa cứng biến thể; dùng `is_active = FALSE`. `cost_price` có thể cao hơn `price`; không có constraint chặn bán lỗ.
+- **Tồn kho:** `available_qty = on_hand_qty - reserved_qty`, đọc từ `inventory_levels` theo `(branch_id, variant_id)`. Hết hàng vẫn hiển thị nếu trạng thái công khai còn bật.
+- Chưa cần `status` hay `published_at` vì UC05–UC06 chưa có trạng thái nháp hoặc hẹn giờ. Quy ước do người phụ trách database đề xuất và được người kiểm tra (Dương Đức Tiến) đồng ý bằng lời, ghi nhận ngày **28/11/2026**. Thay đổi sau này cần cập nhật tại đây.
+
+### Tạo dữ liệu mẫu lặp lại an toàn
+
+Từ `backend`, chạy lệnh sau. Nếu các biến môi trường chưa được đặt, script yêu cầu nhập mật khẩu ẩn (bcrypt, tối thiểu 12 bytes, tối đa 72 bytes); không ghi mật khẩu vào Git, README, log hay gửi trong báo cáo:
+
+```powershell
+python -m scripts.seed_dev
+```
+
+Có thể đặt `SEED_ADMIN_PASSWORD`, `SEED_MANAGER_PASSWORD`, `SEED_STAFF_PASSWORD`, `SEED_CUSTOMER_PASSWORD` trong secret manager khi chạy tự động. Seeder băm mật khẩu bằng bcrypt, thêm record chưa có và không ghi đè thuộc tính account, giá, ảnh hay tồn kho đã tồn tại. Ngoại lệ có chủ đích: nếu category mẫu đã có nhưng chưa có cha, seed gán `parent_id` về `demo-products`; nếu đã có cha khác thì báo lỗi và rollback. Seeder không xóa dữ liệu. Khi account đã tồn tại, mật khẩu nhập ở lần chạy sau không được áp dụng lại; hãy lưu và gửi thông tin đăng nhập lần đầu cho nhóm qua kênh riêng. Các username mẫu:
+
+| Vai trò | Username |
+|---|---|
+| `ADMIN` | `dev-admin` |
+| `BRANCH_MANAGER` | `dev-manager-hanoi`, `dev-manager-hcm` |
+| `WAREHOUSE_STAFF` | `dev-warehouse` |
+| `SALES_STAFF` | `dev-sales` |
+| `CUSTOMER` | `dev-customer` |
+
+Seeder in ra ID database thực tế (các ID tùy thuộc dữ liệu đã có). Các khóa tham chiếu ổn định để Backend/Frontend kiểm thử:
+
+| Trường hợp | Category slug | Product slug | SKU |
+|---|---|---|---|
+| Công khai, nhiều biến thể | `demo-dien-thoai` | `demo-smartphone` | `DEMO-PHONE-BLK-128`, `DEMO-PHONE-BLU-256` |
+| Công khai | `demo-phu-kien` | `demo-phone-case` | `DEMO-CASE-CLR-STD` |
+| Đang ẩn | `demo-dien-thoai` | `demo-hidden-phone` | `DEMO-HIDDEN-GRY-64` |
+
+Seed tạo cây danh mục gồm `demo-products` và hai danh mục con, cùng ảnh SVG placeholder tự chứa cho từng SKU demo trong `product_images`. Role được gán cho tài khoản mẫu, nhưng chưa tạo `permissions`/`role_permissions`: DBML/repository hiện chưa định nghĩa danh sách permission codes và ma trận cấp quyền chính thức, nên không tự suy diễn quyền quản trị.
+
+Tồn khả dụng của từng biến thể được đọc từ `inventory_levels` theo `(branch_id, variant_id)` và tính là `on_hand_qty - reserved_qty`; không lấy số tồn từ bản ghi sản phẩm hoặc biến thể. Hai chi nhánh mẫu là `DEMO-HN` và `DEMO-HCM`.
+
+### Kiểm tra dữ liệu và constraint giá
+
+Sau khi chạy migration và seed, có thể kiểm tra nhanh:
+
+```sql
+SELECT p.product_id, p.slug, p.is_active, c.slug AS category_slug,
+       pv.variant_id, pv.sku, pv.price
+FROM products AS p
+JOIN categories AS c ON c.category_id = p.category_id
+JOIN product_variants AS pv ON pv.product_id = p.product_id
+WHERE p.slug IN ('demo-smartphone', 'demo-hidden-phone')
+ORDER BY p.product_id, pv.variant_id;
+```
+
+`product_variants.product_id` là NOT NULL FK tới `products.product_id`; `sku` có UNIQUE constraint. `product.variants` không còn `delete-orphan`, nên ORM không xóa biến thể theo sản phẩm; FK `RESTRICT` chặn xóa sản phẩm có biến thể. Ứng dụng không được gọi `session.delete()` cho biến thể; dùng service để chuyển `is_active` thành false. `product_images` được xóa cùng sản phẩm theo chính sách đã ghi trong README. Check constraints tại revision `009` cho phép giá bằng 0 nhưng từ chối giá âm; giá vốn bằng 0 vẫn hợp lệ theo default của thiết kế. Trước khi áp dụng `009` lên dữ liệu cũ, kiểm tra không có giá âm:
+
+```sql
+SELECT product_id FROM products WHERE base_price < 0;
+SELECT variant_id FROM product_variants WHERE price < 0 OR cost_price < 0;
+```
+
+Hai truy vấn trên phải trả về không có dòng. Không chạy downgrade trên database cần giữ dữ liệu: downgrade các revision schema có thể xóa bảng và dữ liệu do chúng tạo.
+
+Kiểm tra quy tắc giá “từ” trên tất cả biến thể, kể cả biến thể ẩn; truy vấn phải trả về **0 dòng**:
+
+```sql
+SELECT p.product_id, p.slug, p.base_price, MIN(pv.price) AS min_variant_price
+FROM products p
+JOIN product_variants pv ON pv.product_id = p.product_id
+GROUP BY p.product_id, p.slug, p.base_price
+HAVING p.base_price <> MIN(pv.price);
+```
+
+Không đưa `backend/.env` vào file nén hay chia sẻ; `.gitignore` chỉ ngăn Git theo dõi file, không loại file khỏi archive thủ công. Nếu đã phân phối archive chứa thông tin xác thực, hãy đổi mật khẩu database và `SECRET_KEY`, tạo archive mới không có `.env`, và coi bản archive cũ là đã lộ.
+
+Lưu ý: `vw_branch_daily_sales_report` đang có lỗi nhân tổng theo số dòng hàng. Việc sửa định nghĩa view được hoãn vì Alembic autogenerate không phát hiện thay đổi nội dung view; view hiện tại chưa được xác nhận là chính xác để báo cáo.
+
+---
+
+## 7. Kế hoạch Bộ dữ liệu Lớn (Benchmark Dataset Plan)
+
+Đây là kế hoạch riêng cho kiểm thử hiệu năng; script `scripts/seed_large_data.py` chưa thuộc bộ seed phát triển ở mục 6. Khi triển khai benchmark, dữ liệu dự kiến được phân bổ như sau:
 1. `stock_movements`: **$\ge 100.000$ bản ghi** (Bảng nhật ký biến động kho trung tâm).
 2. `order_items`: **$\ge 40.000$ bản ghi** (Bảng chi tiết đơn hàng).
 3. `orders`: **$\ge 15.000$ bản ghi** (Bảng giao dịch đơn hàng).
