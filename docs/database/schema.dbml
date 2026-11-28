@@ -105,6 +105,10 @@ Table products {
   is_active boolean [not null, default: true]
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (category_id, is_active, base_price) [name: 'idx_products_category_active_price']
+  }
 }
 
 Table product_variants {
@@ -118,6 +122,10 @@ Table product_variants {
   is_active boolean [not null, default: true]
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    product_id [name: 'ix_product_variants_product_id']
+  }
 }
 
 Table product_images {
@@ -127,6 +135,11 @@ Table product_images {
   image_url text [not null]
   is_primary boolean [not null, default: false]
   display_order integer [not null, default: 0]
+
+  indexes {
+    product_id [name: 'ix_product_images_product_id']
+    variant_id [name: 'ix_product_images_variant_id']
+  }
 }
 
 Table suppliers {
@@ -157,6 +170,12 @@ Table inventory_levels {
 
   indexes {
     (branch_id, variant_id) [unique]
+    variant_id [name: 'ix_inventory_levels_variant_id']
+  }
+
+  checks {
+    `on_hand_qty >= 0 AND reserved_qty >= 0 AND reserved_qty <= on_hand_qty` [name: 'chk_inventory_levels_qty_valid']
+    `reorder_level >= 0` [name: 'chk_inventory_levels_reorder_non_negative']
   }
 }
 
@@ -172,6 +191,15 @@ Table purchase_orders {
   note text
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    supplier_id [name: 'ix_purchase_orders_supplier_id']
+    branch_id [name: 'ix_purchase_orders_branch_id']
+  }
+
+  checks {
+    `total_amount >= 0` [name: 'chk_purchase_orders_total_non_negative']
+  }
 }
 
 Table purchase_order_items {
@@ -186,6 +214,11 @@ Table purchase_order_items {
   indexes {
     (po_id, variant_id) [unique]
   }
+
+  checks {
+    `ordered_qty > 0 AND received_qty >= 0 AND received_qty <= ordered_qty` [name: 'chk_po_items_qty_valid']
+    `unit_cost > 0 AND line_total >= 0` [name: 'chk_po_items_cost_valid']
+  }
 }
 
 Table purchase_receipts {
@@ -196,6 +229,11 @@ Table purchase_receipts {
   received_by integer [ref: > users.user_id, not null, note: 'UC09: Nhan vien kho tiep nhan']
   received_at timestamptz [not null, default: `now()`]
   note text
+
+  indexes {
+    po_id [name: 'ix_purchase_receipts_po_id']
+    branch_id [name: 'ix_purchase_receipts_branch_id']
+  }
 }
 
 Table purchase_receipt_items {
@@ -208,6 +246,10 @@ Table purchase_receipt_items {
 
   indexes {
     (receipt_id, variant_id) [unique]
+  }
+
+  checks {
+    `received_qty > 0 AND unit_cost > 0` [name: 'chk_receipt_items_qty_cost_valid']
   }
 }
 
@@ -224,6 +266,16 @@ Table stock_transfers {
   received_at timestamptz
   note text
   created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    from_branch_id [name: 'ix_stock_transfers_from_branch_id']
+    to_branch_id [name: 'ix_stock_transfers_to_branch_id']
+    status [name: 'ix_stock_transfers_status']
+  }
+
+  checks {
+    `from_branch_id <> to_branch_id` [name: 'chk_stock_transfers_different_branches']
+  }
 }
 
 Table stock_transfer_items {
@@ -235,6 +287,10 @@ Table stock_transfer_items {
 
   indexes {
     (transfer_id, variant_id) [unique]
+  }
+
+  checks {
+    `shipped_qty > 0 AND (received_qty IS NULL OR received_qty >= 0)` [name: 'chk_transfer_items_qty_valid']
   }
 }
 
@@ -261,6 +317,10 @@ Table inventory_adjustment_items {
   indexes {
     (adjustment_id, variant_id) [unique]
   }
+
+  checks {
+    `system_qty >= 0 AND actual_qty >= 0 AND diff_qty = actual_qty - system_qty` [name: 'chk_adjustment_items_qty_valid']
+  }
 }
 
 Table stock_movements {
@@ -274,6 +334,15 @@ Table stock_movements {
   balance_after integer [not null, note: 'Ton kho thuc te ngay sau giao dich']
   created_by integer [ref: > users.user_id]
   created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (branch_id, variant_id, created_at [desc]) [name: 'idx_stock_movements_branch_variant_time']
+    variant_id [name: 'ix_stock_movements_variant_id']
+  }
+
+  checks {
+    `qty_change <> 0 AND balance_after >= 0` [name: 'chk_stock_movements_valid']
+  }
 }
 
 // =========================================================================
@@ -296,6 +365,10 @@ Table cart_items {
   indexes {
     (cart_id, variant_id) [unique]
   }
+
+  checks {
+    `quantity > 0` [name: 'chk_cart_items_quantity_positive']
+  }
 }
 
 Table coupons {
@@ -311,6 +384,10 @@ Table coupons {
   end_date timestamptz [not null, note: 'UC20: end_date > start_date']
   is_active boolean [not null, default: true]
   created_at timestamptz [not null, default: `now()`]
+
+  checks {
+    `end_date > start_date AND discount_value > 0` [name: 'chk_coupons_dates_and_discount']
+  }
 }
 
 Table orders {
@@ -334,6 +411,11 @@ Table orders {
   cancelled_by integer [ref: > users.user_id, note: 'UC19: Khach hang hoac NV ban hang huy']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (branch_id, order_status, created_at [desc]) [name: 'idx_orders_branch_status_created']
+    (customer_user_id, created_at [desc]) [name: 'idx_orders_customer_created']
+  }
 }
 
 Table order_items {
@@ -347,6 +429,11 @@ Table order_items {
 
   indexes {
     (order_id, variant_id) [unique]
+    variant_id [name: 'ix_order_items_variant_id']
+  }
+
+  checks {
+    `quantity > 0` [name: 'chk_order_items_quantity_positive']
   }
 }
 
@@ -357,6 +444,10 @@ Table order_status_history {
   note text
   changed_by integer [ref: > users.user_id]
   changed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    order_id [name: 'ix_order_status_history_order_id']
+  }
 }
 
 Table payments {
@@ -368,6 +459,10 @@ Table payments {
   status varchar(30) [not null, default: 'PENDING', note: 'PENDING (COD chua thu tien), SUCCESS, FAILED']
   paid_at timestamptz
   created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    order_id [name: 'ix_payments_order_id']
+  }
 }
 
 Table shipments {
@@ -403,6 +498,14 @@ Table product_reviews {
   rating integer [not null, note: 'UC22: 1 den 5 sao']
   comment text [note: 'UC22: Noi dung nhan xet']
   created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    product_id [name: 'ix_product_reviews_product_id']
+  }
+
+  checks {
+    `rating BETWEEN 1 AND 5` [name: 'chk_product_reviews_rating_range']
+  }
 }
 
 Table returns {
@@ -418,6 +521,11 @@ Table returns {
   rejection_reason text
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    order_id [name: 'ix_returns_order_id']
+    return_branch_id [name: 'ix_returns_return_branch_id']
+  }
 }
 
 Table return_items {
@@ -433,6 +541,10 @@ Table return_items {
 
   indexes {
     (return_id, order_item_id) [unique]
+  }
+
+  checks {
+    `requested_qty > 0 AND (received_qty IS NULL OR received_qty >= 0) AND (restock_qty IS NULL OR restock_qty >= 0) AND (received_qty IS NULL OR restock_qty IS NULL OR restock_qty <= received_qty)` [name: 'chk_return_items_quantity_valid']
   }
 }
 
